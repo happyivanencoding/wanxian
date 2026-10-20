@@ -2,6 +2,9 @@ import { ACHIEVEMENTS, ERAS, FOCUSES, GIVEN_NAMES, HOMES, ITEMS, ORIGINS, REALMS
 import { CHILD_EVENTS, EVENTS, EVENT_MAP } from './events.ts';
 import { fateInfluence } from './fate.ts';
 import { activateStoryPath, getStoryEvent, nextStoryEvent, recordStoryChoice, storyAnnualEffects, storyLegacy, storyTravelMultiplier } from './story.ts';
+import { advancePreparation, completePreparation, learnSectSpecialty, preparationChance, preparationState, preparationTarget, progressionBenefits, selectPreparation } from './progression.ts';
+import { mutateExpedition } from './expeditions.ts';
+import { lifeIdentity, sectHome } from './world.ts';
 import type { Action, ActionResult, BirthConfig, Choice, Effect, EventDef, Game, LifeRecord, LogKind, NPC, Stat } from './types.ts';
 
 export const clamp = (value: number, min = 0, max = 100) => Math.min(max, Math.max(min, value));
@@ -28,7 +31,7 @@ export const currentEra = (g: Pick<Game, 'era'>) => ERAS.find(e => e.id === g.er
 export const itemPrice = (g: Game, id: string) => Math.ceil(ITEMS.find(i => i.id === id)!.price * currentEra(g).price);
 export const homePrice = (g: Game, id: string) => Math.ceil(HOMES.find(h => h.id === id)!.cost * Math.pow(1.85, g.home[id] || 0));
 export const travelPrice = (g: Game, id: string) => Math.ceil(REGIONS.find(region => region.id === id)!.cost * storyTravelMultiplier(g));
-export const craftChance = (g: Game) => clamp(0.55 + g.stats.alchemy * 0.003 + (g.home.furnace || 0) * 0.08 + (g.route === 'alchemy' ? 0.08 : 0), 0.1, 0.98);
+export const craftChance = (g: Game) => clamp(0.55 + g.stats.alchemy * 0.003 + (g.home.furnace || 0) * 0.08 + (g.route === 'alchemy' ? 0.08 : 0) + progressionBenefits(g).craftChance, 0.1, 0.98);
 export function trainingFactors(g: Game) {
   return {
     base: 2.5 + g.aptitude / 12,
@@ -37,11 +40,12 @@ export function trainingFactors(g: Game) {
     preparation: 1 + (g.home.array || 0) * 0.12 + (g.home.mat || 0) * 0.03 + (g.route === 'balanced' ? 0.1 : 0) + (g.sect === 'qinglan' ? 0.12 : 0),
     mind: 0.55 + g.stats.mind * 0.0045, health: 0.4 + g.stats.health * 0.006,
     fate: fateInfluence(g).training,
+    attainments: progressionBenefits(g).training,
   };
 }
 export const trainingRate = (g: Game) => {
   const f = trainingFactors(g);
-  return round(f.base * f.realm * f.region * f.era * f.phase * f.preparation * f.mind * f.health * f.fate);
+  return round(f.base * f.realm * f.region * f.era * f.phase * f.preparation * f.mind * f.health * f.fate * f.attainments);
 };
 export function breakthroughFactors(g: Game, usePill = false) {
   return [
@@ -51,10 +55,12 @@ export function breakthroughFactors(g: Game, usePill = false) {
     { label: '当下道心', value: g.stats.mind * 0.00165 },
     { label: '先天资质', value: g.aptitude * 0.00085 },
     { label: '境界难度', value: -g.realm * 0.075 },
-    { label: '凝灵丹准备', value: usePill ? 0.13 : 0 },
+    { label: '凝灵丹准备', value: usePill ? 0.13 + progressionBenefits(g).pillChance : 0 },
     { label: '问星阁师承', value: g.sect === 'star' ? 0.06 : 0 },
     { label: '体魄未充盈', value: -Math.max(0, 75 - g.stats.health) * 0.0028 },
     { label: '一生道路的积累', value: fateInfluence(g).chance },
+    { label: '本境持续准备', value: preparationChance(g) },
+    { label: '此生所学本领', value: progressionBenefits(g).breakthrough },
     { label: '禁术后患', value: g.flags.includes('forbidden-art') ? -0.07 : 0 },
   ];
 }
@@ -90,6 +96,7 @@ function snapshot(g: Game) {
 function finish(g: Game, ending: string, text: string) {
   if (!g.alive) return;
   g.alive = false; g.pending = null; g.ending = ending; g.endingText = text;
+  if (g.expeditions?.active) delete g.expeditions.active;
   log(g, ending, text, 'ending', true); snapshot(g);
 }
 function checkLife(g: Game) {
@@ -111,6 +118,12 @@ export function createGame(config: BirthConfig): Game {
   const rootIndex = rootRoll < 0.35 ? 0 : rootRoll < 0.70 ? 1 : rootRoll < 0.9 ? 2 : rootRoll < 0.98 ? 3 : 4;
   const aptitude = clamp((noRoot ? 24 : [36, 49, 62, 82, 88][rootIndex]) + origin.aptitude + integer(cursor, -7, 10), 15, 99);
   const era = ERAS.find(e => e.id === config.era) ?? ERAS[0];
+  let region = REGIONS.find(r => r.id === config.region) ?? REGIONS[0];
+  if (config.region === 'random') {
+    let ticket = random(cursor) * 100;
+    const weights = [55, 25, 10, 7, 3];
+    region = REGIONS.find((_, index) => (ticket -= weights[index]) < 0) ?? REGIONS[0];
+  }
   const name = config.name.trim().slice(0, 12) || pick(cursor, SURNAMES) + pick(cursor, GIVEN_NAMES);
   const talent = pick(cursor, ['心如止水', '勤学不辍', '筋骨强健', '草木亲和', '剑心初生']);
   const g: Game = {
@@ -118,9 +131,9 @@ export function createGame(config: BirthConfig): Game {
     root: noRoot ? '无灵根 · 以武入道' : roots[rootIndex], aptitude, talent, route: noRoot ? 'body' : (ROUTES.some(r => r.id === config.route) ? config.route : 'balanced'),
     age: 0, realm: 0, progress: 0, lifespan: 85 + integer(cursor, -6, 8), stones: origin.stones,
     stats: { health: 84, mind: 65, insight: 32 + origin.insight, foundation: 27 + origin.foundation, reputation: origin.id === 'clan' ? 12 : 3, alchemy: 0, combat: origin.id === 'wanderer' ? 18 : 6 },
-    focus: 'cultivate', region: 'qinglan', sect: null, contribution: 0, sectRank: 0, home: { mat: 1, array: 0, furnace: 0, library: 0, garden: 0 }, inventory: { herb: 3, heal: 1 }, equipped: null,
+    focus: 'cultivate', region: region.id, sect: null, contribution: 0, sectRank: 0, home: { mat: 1, array: 0, furnace: 0, library: 0, garden: 0 }, inventory: { herb: 3, heal: 1 }, equipped: null,
     flags: [], seen: {}, pending: null, delayed: [], npcs: [], logs: [], snapshots: [], actionsLeft: 3, cooldownUntil: 0, attempts: 0, successes: 0, totalStones: origin.stones,
-    visited: ['qinglan'], choices: 0, alive: true, ending: null, endingText: '', yearName: era.id === 'chaos' ? '赤烽历' : era.id === 'renewal' ? '灵初历' : '承平历', logSeq: 0,
+    visited: [region.id], choices: 0, alive: true, ending: null, endingText: '', yearName: era.id === 'chaos' ? '赤烽历' : era.id === 'renewal' ? '灵初历' : '承平历', logSeq: 0,
   };
   g.rng = cursor.rng;
   const talentEffects: Record<string, Effect> = { 心如止水: { stats: { mind: 10 } }, 勤学不辍: { stats: { insight: 9 } }, 筋骨强健: { stats: { health: 10, foundation: 4 } }, 草木亲和: { stats: { alchemy: 12 } }, 剑心初生: { stats: { combat: 12 } } };
@@ -132,7 +145,7 @@ export function createGame(config: BirthConfig): Game {
     usedNames.add(npcName);
     g.npcs.push({ id: `peer-${i}`, name: npcName, title: ['世家后人', '药师之子', '山野少年', '剑阁遗孤'][i], personality: ['锐意进取', '温厚沉稳', '随性洒脱', '清冷执着'][i], realm: 0, progress: 0, aptitude: integer(g, 30, 88), age: 0, lifespan: integer(g, 78, 92), alive: true, relation: i === 3 ? 25 : integer(g, 32, 48), role: i === 3 ? 'rival' : 'friend', lastInteraction: -1, story: '与你生于同一年，也将走向自己的山河。' });
   }
-  log(g, '此生，始于青岚', `${name}生于${origin.name}，身逢${era.name}。${origin.description}`, 'life', true);
+  log(g, `此生，始于${region.name}`, `${name}出身${origin.name}，生于${region.name}，身逢${era.name}。${origin.description}`, 'life', true);
   log(g, '命格初现', `${g.root}，先天资质 ${g.aptitude}。天赋「${g.talent}」。${noRoot ? '你将以体修之路寻找自己的仙缘。' : '出身决定起点，未必决定终点。'}`, 'life', true);
   snapshot(g);
   if (config.fastStart) {
@@ -171,7 +184,7 @@ export function getEvent(g: Game, id: string | null = g.pending): EventDef | und
   return original;
 }
 export function requiresPlayerChoice(g: Game): boolean {
-  return Boolean(g.pending && getEvent(g)?.kind === 'turning');
+  return Boolean(g.expeditions?.active || (g.pending && getEvent(g)?.kind === 'turning'));
 }
 function openEvent(g: Game, id: string) {
   if (id === 'wounded-friend' && !g.flags.some(flag => flag.startsWith('wounded-person:'))) {
@@ -263,7 +276,7 @@ function growNPCs(g: Game) {
   }
 }
 function advanceOne(g: Game) {
-  if (!g.alive || g.pending) return;
+  if (!g.alive || g.pending || g.expeditions?.active) return;
   g.age++; g.actionsLeft = 3;
   growNPCs(g);
   if (g.age % 20 === 0) log(g, worldPhase(g).name, worldPhase(g).description, 'world', true);
@@ -275,6 +288,7 @@ function advanceOne(g: Game) {
     if (g.age === 1) log(g, '最初的脚步', '你跌跌撞撞地走过门槛，家中响起一阵笑声。');
   } else {
     const rate = trainingRate(g);
+    const learned = progressionBenefits(g);
     const r = g.realm;
     if (g.age < 16) gain(g, { progress: rate * 0.22, stones: 1, stats: { insight: 0.6, foundation: 0.6, combat: 0.3 } });
     else {
@@ -282,25 +296,25 @@ function advanceOne(g: Game) {
       switch (g.focus) {
         case 'cultivate': gain(g, { progress: rate, stats: { mind: -1.2, health: -0.4, foundation: 0.4 } }); break;
         case 'study': gain(g, { progress: rate * 0.42, stats: { insight: 1.5, foundation: 1.2, mind: -0.3 } }); break;
-        case 'work': gain(g, { progress: rate * 0.2, stones: (14 + 16 * r) * worldPhase(g).income * (g.route === 'alchemy' ? 1.15 : 1), stats: { health: -0.6 } }); break;
+        case 'work': gain(g, { progress: rate * 0.2, stones: (14 + 16 * r) * worldPhase(g).income * (g.route === 'alchemy' ? 1.15 : 1) + learned.workIncome, stats: { health: -0.6 } }); break;
         case 'alchemy': gain(g, { progress: rate * 0.3, stones: 5 + 4 * r, item: 'herb', amount: 2 + Math.floor(r / 2) + (g.region === 'river' ? 1 : 0) + (worldPhase(g).name === '百草丰年' ? 1 : 0), stats: { alchemy: g.route === 'alchemy' ? 2.2 : 1.5 } }); break;
-        case 'rest': gain(g, { progress: rate * 0.12, stats: { health: 10, mind: 8 + g.home.mat * 2 } }); break;
+        case 'rest': gain(g, { progress: rate * 0.12, stats: { health: 10 + learned.restHealth, mind: 8 + g.home.mat * 2 + learned.restMind } }); break;
         case 'social': gain(g, { progress: rate * 0.35, stats: { mind: 6, reputation: 0.5 } }); for (const npc of g.npcs.filter(n => n.alive)) npc.relation = round(clamp(npc.relation + 1.2)); break;
         case 'adventure': {
-          gain(g, { progress: rate * 0.8, stones: (8 + r * 8) * (g.region === 'desert' ? 1.6 : 1) * (g.route === 'sword' ? 1.25 : 1) * (g.era === 'chaos' ? 1.25 : 1), stats: { combat: 1.8 } });
+          gain(g, { progress: rate * 0.8 * learned.adventureTraining, stones: (8 + r * 8) * (g.region === 'desert' ? 1.6 : 1) * (g.route === 'sword' ? 1.25 : 1) * (g.era === 'chaos' ? 1.25 : 1) * learned.adventureIncome, stats: { combat: 1.8 } });
           if (random(g) < 0.45) gain(g, { item: 'herb', amount: integer(g, 1, 3) });
           if (random(g) < 0.16) gain(g, { item: 'jade', amount: 1 });
-          const combat = g.stats.combat + (g.equipped === 'sword' ? 15 : 0);
+          const combat = g.stats.combat + learned.adventureCombat;
           const risk = currentRegion(g).risk * currentEra(g).risk * worldPhase(g).risk * (1 - Math.min(100, combat) / 180) * (g.equipped === 'talisman' ? 0.6 : 1);
           if (random(g) < risk) {
-            const damage = Math.ceil(integer(g, 8, 23) * (g.route === 'body' ? 0.7 : 1));
+            const damage = Math.ceil(integer(g, 8, 23) * (g.route === 'body' ? 0.7 : 1) * learned.adventureDamage);
             gain(g, { stats: { health: -damage } }); log(g, '历练负伤', `山路不总是坦途。你带着${damage}点体魄损耗归来，最好先静养。`, 'encounter');
           }
           break;
         }
       }
       const fate = fateInfluence(g);
-      const upkeep = 4 + 5 * r + Object.values(g.home).reduce((sum, level) => sum + level * 2, 0) + fate.upkeep;
+      const upkeep = 4 + 5 * r + Object.values(g.home).reduce((sum, level) => sum + level * 2, 0) + fate.upkeep + learned.upkeep;
       if (fate.income) gain(g, { stones: fate.income });
       const shortage = Math.max(0, upkeep - g.stones);
       g.stones = Math.max(0, g.stones - upkeep);
@@ -319,14 +333,15 @@ function advanceOne(g: Game) {
       for (const effect of storyAnnualEffects(g)) gain(g, effect);
       // High stats need continued attention; different choices fund or strain a way of life.
       gain(g, { stats: {
-        health: -0.65 - r * 0.10 - (g.age > g.lifespan * 0.8 ? 0.8 : 0) - fate.healthDrain,
+        health: -0.65 - r * 0.10 - (g.age > g.lifespan * 0.8 ? 0.8 : 0) - fate.healthDrain + learned.yearHealth,
         mind: -0.6 - Math.max(0, g.stats.mind - 60) * 0.022 - fate.mindDrain,
         foundation: -Math.max(0, g.stats.foundation - 40) * 0.045 + fate.foundationGrowth,
         insight: -Math.max(0, g.stats.insight - 45) * 0.038,
-        reputation: -Math.max(0, g.stats.reputation - 25) * 0.021 + fate.reputationGrowth,
+        reputation: -Math.max(0, g.stats.reputation - 25) * 0.021 + fate.reputationGrowth + learned.yearReputation,
         alchemy: -Math.max(0, g.stats.alchemy - 35) * 0.04,
         combat: -Math.max(0, g.stats.combat - 35) * 0.034,
       } });
+      advancePreparation(g, { gain, log });
     }
     if (g.age % 5 === 0) log(g, g.age < 16 ? '少年渐长' : '岁月小记', `${g.age < 16 ? '读书、练功，渐渐长大。' : `日常修行按安排继续，眼下以${FOCUSES.find(f => f.id === g.focus)!.name}为重心。`}如今修为${g.progress}，积蓄${g.stones}灵石，体魄${g.stats.health}，道心${g.stats.mind}。`, g.focus === 'work' || g.focus === 'alchemy' ? 'economy' : 'cultivation');
   }
@@ -344,17 +359,19 @@ function breakthrough(g: Game, usePill: boolean): string | null {
   if (g.stones < cost) return `冲关需要 ${cost} 灵石`;
   if (usePill && !(g.inventory.breakpill > 0)) return '行囊中没有凝灵丹';
   const chance = breakthroughChance(g, usePill);
+  const learned = progressionBenefits(g);
   g.stones -= cost; if (usePill) g.inventory.breakpill--;
   g.attempts++; g.actionsLeft--;
   if (random(g) < chance) {
+    completePreparation(g, { gain, log });
     g.realm++; g.progress = 0; g.successes++;
     g.lifespan = g.realm === 6 ? 9999 : Math.max(g.lifespan, REALMS[g.realm].life + integer(g, -6, 12));
     gain(g, { stats: { health: 12, mind: 7, foundation: -8, reputation: 8 } });
     if (g.realm === 6) finish(g, '白日飞升', '天门洞开，山川在脚下铺展。你回望人间，那里有你住过的草屋、喝过的茶，以及再也不会忘记的名字。');
     else log(g, '破境 · ' + REALMS[g.realm].name, `你越过了那道门槛。寿元上限延至${g.lifespan}岁，此刻冲关成功率为${Math.round(chance * 100)}%。`, 'cultivation', true);
   } else {
-    const injury = integer(g, 15, 27);
-    g.progress = round(g.progress * 0.72); g.cooldownUntil = g.age + 2 + g.realm;
+    const injury = Math.ceil(integer(g, 15, 27) * learned.failureDamage);
+    g.progress = round(g.progress * learned.failureRetention); g.cooldownUntil = g.age + Math.max(1, 2 + g.realm - learned.cooldownReduction);
     gain(g, { stats: { health: -injury, mind: -10, foundation: 4 } });
     log(g, '冲关未成', `灵气散尽，体魄损耗${injury}。你保住了大半修为，并从失败中夯实根基；${g.cooldownUntil}岁后可再试。`, 'cultivation', true);
     checkLife(g);
@@ -364,13 +381,25 @@ function breakthrough(g: Game, usePill: boolean): string | null {
 function perform(g: Game, action: Action): string | null {
   if (action.type === 'star') { const entry = g.logs.find(l => l.id === action.id); if (entry) entry.starred = !entry.starred; return null; }
   if (!g.alive) return '此生已结卷，请在轮回页开启新的人生';
+  if (action.type === 'retire') { finish(g, '归隐山林', '你放下追逐境界的执念，将此生的求道篇章停在这里。余下的光阴，留给山林、故人，以及自己的生活。'); return null; }
+  const expeditionAction = action.type === 'expedition-start' || action.type === 'expedition-choose' || action.type === 'expedition-retreat';
+  if (g.expeditions?.active && !expeditionAction) return '你正在亲历一段机缘，请先作出选择或撤退';
+  if (expeditionAction) {
+    if (g.pending) return '请先处理眼前的抉择';
+    const error = mutateExpedition(g, action, { random, gain, log, checkLife });
+    if (!error) snapshot(g);
+    return error ?? null;
+  }
+  if (action.type === 'prepare') {
+    if (g.pending) return '请先处理眼前的抉择';
+    return selectPreparation(g, action.method) ?? null;
+  }
   if (action.type === 'focus') {
     if (!FOCUSES.some(f => f.id === action.focus)) return '未知的修行重心';
     if (g.age < 6) return '六岁后可选择修行重心';
     g.focus = action.focus; return null;
   }
   if (action.type === 'choose') return resolveChoice(g, action.index);
-  if (action.type === 'retire') { finish(g, '归隐山林', '你放下追逐境界的执念，将此生的求道篇章停在这里。余下的光阴，留给山林、故人，以及自己的生活。'); return null; }
   if (g.pending) return '请先处理眼前的抉择';
   if (action.type === 'advance') {
     const years = clamp(Math.floor(action.years ?? 1), 1, 100);
@@ -384,6 +413,7 @@ function perform(g: Game, action: Action): string | null {
     const item = ITEMS.find(i => i.id === action.id);
     if (!item) return '没有这件物品';
     if (action.type === 'buy') {
+      if (item.market === false) return '这件法宝来自宗门传授，坊市没有出售';
       if (g.realm < item.minRealm) return '境界不足，无法购得此物';
       const price = itemPrice(g, item.id);
       if (g.stones < price) return '灵石不足';
@@ -404,9 +434,13 @@ function perform(g: Game, action: Action): string | null {
         if (item.id === 'longevity' && g.flags.filter(f => f.startsWith('longevity-')).length >= 3) return '此生已服用三枚延寿丹，再服无效';
         if (item.id === 'heal' && g.stats.health >= 100) return '体魄已满，无需服药';
         if (item.id === 'calm' && g.stats.mind >= 100) return '道心已满，无需服药';
-        g.inventory[item.id]--; gain(g, item.effect);
+        g.inventory[item.id]--;
+        const recovery = progressionBenefits(g).pillPotency;
+        const effect = item.id === 'heal' ? { ...item.effect, stats: { ...item.effect.stats, health: (item.effect.stats?.health ?? 0) + recovery } }
+          : item.id === 'calm' ? { ...item.effect, stats: { ...item.effect.stats, mind: (item.effect.stats?.mind ?? 0) + recovery } } : item.effect;
+        gain(g, effect);
         if (item.id === 'longevity') g.flags.push(`longevity-${g.flags.filter(f => f.startsWith('longevity-')).length + 1}`);
-        log(g, item.kind === 'book' ? '研读功法' : '服用丹药', `${item.name}：${item.description}`, 'cultivation');
+        log(g, item.kind === 'book' ? '研读功法' : '服用丹药', `${item.name}：${item.description}${recovery && ['heal', 'calm'].includes(item.id) ? `所学药理额外恢复${recovery}。` : ''}`, 'cultivation');
       }
     }
   } else if (action.type === 'craft') {
@@ -420,7 +454,9 @@ function perform(g: Game, action: Action): string | null {
     for (const [id, amount] of Object.entries(recipe.materials)) g.inventory[id] -= amount;
     const success = random(g) < craftChance(g);
     gain(g, { stats: { alchemy: success ? 3 : 4 }, ...(success ? { item: recipe.id } : {}) });
-    log(g, success ? '开炉成丹' : '丹火未候', success ? `一枚${recipe.name}落入玉瓶。` : `这一炉${recipe.name}未成。材料已经消耗，你对火候却多了一分理解。`, 'cultivation', true);
+    const returnedHerbs = !success ? progressionBenefits(g).failedCraftHerbs : 0;
+    if (returnedHerbs) gain(g, { item: 'herb', amount: returnedHerbs });
+    log(g, success ? '开炉成丹' : '丹火未候', success ? `一枚${recipe.name}落入玉瓶。` : `这一炉${recipe.name}未成。${returnedHerbs ? `凭所学回收${returnedHerbs}株灵草，其余材料与炉费已消耗。` : '材料已经消耗，'}你对火候多了一分理解。`, 'cultivation', true);
   } else if (action.type === 'travel') {
     const region = REGIONS.find(r => r.id === action.id);
     if (!region) return '未知的目的地';
@@ -435,13 +471,16 @@ function perform(g: Game, action: Action): string | null {
     const sect = SECTS.find(s => s.id === action.id);
     if (!sect) return '没有这个宗门';
     if (g.sect) return '已在宗门中，需先离宗';
+    if (g.region !== sectHome(sect.id)) return `请先前往${REGIONS.find(region => region.id === sectHome(sect.id))!.name}拜入山门`;
     if (g.realm < sect.minRealm || g.stats.reputation < sect.reputation) return `入门需要${REALMS[sect.minRealm].name}境与${sect.reputation}声望`;
     if (g.stones < 30) return '入门需准备30灵石';
     g.stones -= 30; g.sect = sect.id; g.sectRank = 0; g.contribution = 0;
     log(g, '拜入山门', `你成为${sect.name}的外门弟子。${sect.bonus}。`, 'relationship', true);
   } else if (action.type === 'sect') {
     if (!g.sect) return '你尚未加入宗门';
-    if (action.job === 'mission') {
+    if (action.job === 'learn') {
+      const error = learnSectSpecialty(g, { gain, log }); if (error) return error;
+    } else if (action.job === 'mission') {
       gain(g, { stones: 18 + 12 * g.realm, contribution: 22 + 5 * g.sectRank, stats: { health: -6, reputation: 2 } });
       log(g, '完成宗门委托', '护送物资归山，换来贡献与月例之外的灵石。体魄损耗6。', 'economy');
     } else if (action.job === 'study') {
@@ -508,13 +547,20 @@ export function autoChoice(g: Game, policy: 'safe' | 'bold' | 'random'): number 
   return available.sort((a, b) => score(b.choice) - score(a.choice))[0].index;
 }
 function autoMutate(g: Game, policy: 'safe' | 'bold' | 'random') {
-  if (!g.alive) return;
+  if (!g.alive || g.expeditions?.active) return;
   if (g.pending) { if (!requiresPlayerChoice(g)) resolveChoice(g, autoChoice(g, policy)); return; }
   if (g.age < 16) { advanceOne(g); return; }
+  const preparation = preparationState(g);
+  const preparing = preparation.selected && preparation.progress[preparation.selected] < preparationTarget(g.realm, preparation.selected);
   if (g.stats.health < (policy === 'bold' ? 40 : 60) || g.stats.mind < 42) g.focus = 'rest';
+  else if (preparing) {
+    if (g.stones < 12 + g.realm * 8) g.focus = 'work';
+    else g.focus = ({ temper: 'adventure', meditate: 'study', medicine: 'alchemy' } as const)[preparation.selected!];
+  }
   else if (g.progress >= REALMS[g.realm].need && g.age >= g.cooldownUntil && g.stones >= REALMS[g.realm].cost && g.actionsLeft > 0) { breakthrough(g, g.inventory.breakpill > 0); return; }
   else if (g.progress / REALMS[g.realm].need > 0.55 && g.stones < REALMS[g.realm].cost * 1.2) g.focus = 'work';
   else if (g.progress / REALMS[g.realm].need > 0.75 && g.stats.foundation < 50) g.focus = 'study';
+  else if (g.flags.includes('legacy-eclipse') && ['rest', 'work', 'study', 'cultivate'].includes(g.focus)) g.focus = 'adventure';
   else if (['rest', 'work', 'study'].includes(g.focus)) g.focus = 'cultivate';
   advanceOne(g);
 }
@@ -550,7 +596,8 @@ export function lifeLegacy(g: Game) {
     : g.stats.alchemy >= 70 ? '药香未散，你的手艺仍在坊间流传。'
     : g.realm >= 4 ? '你的传说，留在那些仰望仙途的人口中。'
     : '未必人人知晓，但这一生的每一步都曾真实走过。';
-  return [storyLegacy(g) || fate, personal].filter(Boolean).join(' ');
+  const identity = lifeIdentity(g);
+  return [identity.description, storyLegacy(g) || fate, personal].filter(Boolean).join(' ');
 }
 export function archiveLife(g: Game, date = new Date().toISOString()): LifeRecord {
   return { id: g.id, name: g.name, age: g.age, realm: g.realm, origin: g.origin, route: g.route, ending: g.ending ?? '未结卷', endingText: g.endingText, totalStones: g.totalStones, choices: g.choices, legacy: lifeLegacy(g), logs: g.logs.filter(l => l.important || l.starred).slice(-500), date };

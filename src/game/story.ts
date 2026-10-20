@@ -87,7 +87,7 @@ export function recordStoryChoice(g: Game, e: EventDef, choice: Choice) {
 function invitationCause(g: Game, path: StoryPath): string {
   if (path === 'guardian') return has(g, 'vow-people') ? '你曾立誓守护身边的人，这个回答被同道记住了。'
     : g.route === 'alchemy' || g.focus === 'alchemy' ? '你在草药与伤者之间渐渐有了名声，城中的托付因此找到你。'
-    : g.origin === 'village' ? '你出身农家，知道田地与家人的安稳意味着什么。' : '青岚的日常与同道的来往，让一城灯火渐渐有了分量。';
+    : g.origin === 'village' ? '你出身农家，知道田地与家人的安稳意味着什么。' : '人间的日常与同道的来往，让一城灯火渐渐有了分量。';
   if (path === 'lone') return has(g, 'cave-studied') || has(g, 'cave-heir') ? '早年的洞府际遇留下了一个尚未解开的疑问。'
     : has(g, 'vow-dao') || has(g, 'seek-eternity') ? '你曾把求道当作此生方向，同行者因此把残卷留给你。'
     : g.focus === 'study' ? '你长年读典籍，残卷的线索与你正在思考的事相接。' : '你的修行已渐渐成形，一份残卷让往后的路有了新的可能。';
@@ -105,7 +105,7 @@ export function nextStoryEvent(g: Game, roll: number): string | undefined {
     const weights = [
       1 + (has(g, 'vow-people') ? 4 : 0) + (g.route === 'alchemy' || g.origin === 'village' ? 3 : 0) + (g.focus === 'social' || g.focus === 'alchemy' ? 2 : 0),
       1 + (has(g, 'vow-dao') || has(g, 'cave-studied') ? 4 : 0) + (g.origin === 'clan' || g.route === 'sword' ? 2 : 0) + (g.focus === 'study' ? 3 : 0),
-      1 + (has(g, 'vow-world') || has(g, 'saved-merchant') ? 4 : 0) + (g.origin === 'merchant' || g.origin === 'wanderer' ? 3 : 0) + (g.region !== 'qinglan' || g.focus === 'work' ? 2 : 0),
+      1 + (has(g, 'vow-world') || has(g, 'saved-merchant') ? 4 : 0) + (g.origin === 'merchant' || g.origin === 'wanderer' ? 3 : 0) + (g.region !== (g.visited[0] ?? 'qinglan') || g.focus === 'work' ? 2 : 0),
     ];
     let ticket = roll * weights.reduce((sum, value) => sum + value, 0);
     return `story-call-${paths[weights.findIndex((weight, i) => (ticket -= weight) < 0 || i === weights.length - 1)]}`;
@@ -117,7 +117,7 @@ export function nextStoryEvent(g: Game, roll: number): string | undefined {
     let branch: string;
     if (path === 'guardian') {
       const medicine = g.route === 'alchemy' || g.focus === 'alchemy' || g.home.garden > 0 || g.origin === 'village';
-      const displacement = g.era === 'chaos' || g.region !== 'qinglan' || ['sword', 'body'].includes(g.route);
+      const displacement = g.era === 'chaos' || g.region !== (g.visited[0] ?? 'qinglan') || ['sword', 'body'].includes(g.route);
       branch = medicine || (!displacement && ((storyPerson(g, path)?.relation ?? 0) >= 55 || roll < 0.5)) ? 'healing' : 'exodus';
     } else if (path === 'lone') {
       const teaching = has(g, 'took-disciple') || has(g, 'home-school') || g.focus === 'social' || (storyPerson(g, path)?.relation ?? 0) >= 60;
@@ -143,13 +143,13 @@ export function getStoryEvent(g: Game, id: string): EventDef | undefined {
   if (id.startsWith('story-call-')) {
     const guardian = personWords(g, 'guardian').name, lone = personWords(g, 'lone').name, trader = personWords(g, 'contract').name;
     const firstContact = person?.alive ? `${name}寄来一封信。` : `${name}${person?.realm === 6 ? '飞升前托存的手记' : '留下的遗札'}辗转送到你手中。`;
-    const scene = path === 'guardian' ? '信笺里夹着一张缺药的清单，背面画着城中住户的门牌。青岚需要有人照应，但你也记得孤峰的残卷和通往山外的商路。'
+    const scene = path === 'guardian' ? '信笺里夹着一张缺药的清单，背面画着城中住户的门牌。信中这座山城需要有人照应，但你也记得孤峰的残卷和通往山外的商路。'
       : path === 'lone' ? '一份残卷被包在旧纸里，末页只留着一句尚无答案的疑问。它指向孤峰的遗迹；而城中的灯火与山外的商队，也仍在等愿意同行的人。'
-      : '行路图标出了沿途人家的姓名，空白处写着缺粮、缺药与失修的山道。商队在寻新的同行者；你也可以留下照看青岚，或带着残卷去孤峰求道。';
+      : '行路图标出了沿途人家的姓名，空白处写着缺粮、缺药与失修的山道。商队在寻新的同行者；你也可以应下山城的托付，或带着残卷去孤峰求道。';
     return result(`${firstContact}${scene}`, invitationCause(g, path), [
-      c('留下来，与一城人互相照应', '守望人间：承担护城供养；后续会围绕药堂、安居与故人展开', { storyPath: 'guardian', stats: { reputation: 6, mind: 5 } }, `你把名字写进守望簿。${guardian}的旧愿从此与你相连，今后的安居与离散都会留下痕迹。`),
-      c('带着残卷，去孤峰寻找答案', '孤峰问道：修炼加快，身心消耗增加；后续围绕残卷、同行与传承展开', { storyPath: 'lone', stats: { insight: 6 }, progress: 15 }, `你带走${lone}经手的残卷。此后要研究什么、与谁分享，会决定这份传承的去处。`),
-      c('沿着商路，去看山外的生活', '山河商路：每年盟约收入，修行略慢；后续围绕供给、信用与同行展开', { storyPath: 'contract', stones: 30 }, `你接下${trader}留下的行路图。路上的供给与信任，从此也是你要经营的人生。`),
+      c('应下托付，与一城人互相照应', '守望人间：承担护城供养；声望 +6、道心 +5', { storyPath: 'guardian', stats: { reputation: 6, mind: 5 } }, `你把名字写进守望簿。${guardian}的旧愿从此与你相连，今后的安居与离散都会留下痕迹。`),
+      c('带着残卷，去孤峰寻找答案', '孤峰问道：修炼加快，身心消耗增加；悟性 +6、修为 +15', { storyPath: 'lone', stats: { insight: 6 }, progress: 15 }, `你带走${lone}经手的残卷。此后要研究什么、与谁分享，会决定这份传承的去处。`),
+      c('沿着商路，去看山外的生活', '山河商路：每年盟约收入，修行略慢；灵石 +30', { storyPath: 'contract', stones: 30 }, `你接下${trader}留下的行路图。路上的供给与信任，从此也是你要经营的人生。`),
     ]);
   }
   switch (id) {
@@ -159,9 +159,9 @@ export function getStoryEvent(g: Game, id: string): EventDef | undefined {
         c('教会各家照料彼此，建立互助簿', '互助网络：每年道心 +0.6、根基 +0.3；救治不依赖一处药堂', { flag: 'story-care-network', stats: { reputation: 8 }, ...relation(5) }, '家家留下一册简单医方。你不必独自照看每盏灯，城中人开始学会相互照料。'),
       ]);
     case 'story-guardian-exodus':
-      return result(`${arrival}连年的山道损毁让旧城越来越难以获得供给。居民已清点好家当：有人愿意留下重建，有人想沿商路另寻安居地。你守护的是一座城，还是一起生活过的人？`, `你曾立下守望之约；${g.region !== 'qinglan' ? '亲自远行的经历让你知道城外仍有道路。' : g.era === 'chaos' ? '烽火里的安居始终需要付出。' : '这些年的护卫经历让迁居与重建都成为可行的选择。'}`, [
+      return result(`${arrival}连年的山道损毁让旧城越来越难以获得供给。居民已清点好家当：有人愿意留下重建，有人想沿商路另寻安居地。你守护的是一座城，还是一起生活过的人？`, `你曾立下守望之约；${g.region !== (g.visited[0] ?? 'qinglan') ? '亲自远行的经历让你知道城外仍有道路。' : g.era === 'chaos' ? '烽火里的安居始终需要付出。' : '这些年的护卫经历让迁居与重建都成为可行的选择。'}`, [
         c('留下修复旧城，让守望能延续', '守城成形：每年根基 +0.4、声望 +0.3；旧城供养继续', { flag: 'story-watch', stats: { foundation: 7, health: -5 }, ...relation(7) }, '你和愿意留下的人重修山道。修复不会一夜完成，但每年的守望都有了接续。'),
-        c('带愿意离开的人迁居，改走商路', '人生转向山河商路：旧守望写入年谱；停止旧路线供养，获得行旅补给，后续处理新商路', { storyPath: 'contract', flag: 'story-caravan', stones: 25, stats: { mind: 5 } }, `你把${name}的旧约连同守望簿带上行囊。此后以商路收入和行旅补给维持新生活，旧城的历史仍然属于你。`),
+        c('带愿意离开的人迁居，改走商路', '人生转向山河商路：旧守望写入年谱；停止旧路线供养，获得行旅补给', { storyPath: 'contract', flag: 'story-caravan', stones: 25, stats: { mind: 5 } }, `你把${name}的旧约连同守望簿带上行囊。此后以商路收入和行旅补给维持新生活，旧城的历史仍然属于你。`),
       ]);
     case 'story-lone-riddle':
       return result(`${arrival}残卷终于推到关键处，却缺少最后一页。你发现它描述的并非固定术式，而是修士如何回应天地变化。闭门推演与亲历山河，可能导向不同的答案。`, `${has(g, 'cave-studied') ? '当年洞府阵纹中留下的疑问' : '你带上孤峰的那份残卷'}，经过这些年的研读终于露出缺口。`, [
@@ -185,12 +185,12 @@ export function getStoryEvent(g: Game, id: string): EventDef | undefined {
       ]);
     case 'story-guardian-echo': {
       const clinic = has(g, 'story-clinic'), network = has(g, 'story-care-network');
-      return result(`${echo}${clinic ? '药堂第一次靠自己种下的药材度过了寒冬。药册上写着受过照料的人，空院已经成了他们愿意回来的地方。' : network ? '互助簿已经不需要你逐页过问。邻里会自己补上空缺，那些被你教过的人正在教下一批人。' : '旧城的山道重新通行，城中人轮流看护。你从前一个人承担的守望，终于开始有人接手。'}`, '这是你上次安排逐年执行的结果，无需再替日常事务作一次决定。', [c('收到这段回响', '这段结果自动写入年谱，原有生活安排继续', { stats: { mind: 5 } }, `${echo}${clinic ? '药堂度过寒冬，旧医方有了新的名字。' : network ? '互助簿从你的安排变成了众人的习惯。' : '山道复通，守望开始有人接续。'}`)]);
+      return result(`${echo}${clinic ? '药堂第一次靠自己种下的药材度过了寒冬。药册上写着受过照料的人，空院已经成了他们愿意回来的地方。' : network ? '互助簿已经不需要你逐页过问。邻里会自己补上空缺，那些被你教过的人正在教下一批人。' : '旧城的山道重新通行，城中人轮流看护。你从前一个人承担的守望，终于开始有人接手。'}`, '旧药册与守望簿上的笔迹，已经不止你熟悉的那几种。', [c('收到这段回响', '道心 +5；原有生活安排继续', { stats: { mind: 5 } }, `${echo}${clinic ? '药堂度过寒冬，旧医方有了新的名字。' : network ? '互助簿从你的安排变成了众人的习惯。' : '山道复通，守望开始有人接续。'}`)]);
     }
     case 'story-lone-echo':
-      return result(`${echo}${has(g, 'story-school') ? '一份寄回的解法指出你旧稿里的疏漏。求学者没有只重复你的答案，这让开门有了真正的意义。' : has(g, 'story-fieldnotes') ? '旧卷中无法解释的变化，在一处普通山谷里得到印证。你终于把经历写成了新的注解。' : '一页旧稿终于能够首尾相接。多年推演没有带来所有答案，却让当初的问题变得更清楚。'}`, '你选择的研究或共学方式已经持续数年，结果来自那次安排。', [c('收好新的注解', '自动记入年谱；悟性 +5，既有研究方式继续', { stats: { insight: 5 } }, `${echo}残卷旁多了真正属于你这一生的注解。`)]);
+      return result(`${echo}${has(g, 'story-school') ? '一份寄回的解法指出你旧稿里的疏漏。求学者没有只重复你的答案，这让开门有了真正的意义。' : has(g, 'story-fieldnotes') ? '旧卷中无法解释的变化，在一处普通山谷里得到印证。你终于把经历写成了新的注解。' : '一页旧稿终于能够首尾相接。多年推演没有带来所有答案，却让当初的问题变得更清楚。'}`, '新注解叠在你当年留下的旧稿上，墨色深浅不一。', [c('收好新的注解', '悟性 +5；既有研究方式继续', { stats: { insight: 5 } }, `${echo}残卷旁多了真正属于你这一生的注解。`)]);
     case 'story-contract-echo':
-      return result(`${echo}${has(g, 'story-waystations') ? '又一场长雨来临，商队分段借宿驿站，药材仍如期送到。那次投资改变了商路渡过难关的方式。' : has(g, 'story-fairtrade') || has(g, 'story-ledger') ? '有人带着新订单来，只因旧账与交货都能说清楚。收入来得慢一些，名字却渐渐成为信用。' : '新账显示收入增长，也记着又一场催债争执。掌握商路的代价并未因为财富增加而消失。'}`, '这份回音来自你确立的驿站、契约或账簿安排。', [c('把回音记入行路簿', '自动记入年谱，当前商路收益与代价继续', { stones: 20 }, `${echo}新一季的账簿如实留下了你选择的结果。`)]);
+      return result(`${echo}${has(g, 'story-waystations') ? '又一场长雨来临，商队分段借宿驿站，药材仍如期送到。那次投资改变了商路渡过难关的方式。' : has(g, 'story-fairtrade') || has(g, 'story-ledger') ? '有人带着新订单来，只因旧账与交货都能说清楚。收入来得慢一些，名字却渐渐成为信用。' : '新账显示收入增长，也记着又一场催债争执。掌握商路的代价并未因为财富增加而消失。'}`, '新账与旧契放在一起，纸上仍能找到当年的签名。', [c('把回音记入行路簿', '灵石 +20；当前商路收益与代价继续', { stones: 20 }, `${echo}新一季的账簿如实留下了你选择的结果。`)]);
     case 'story-guardian-legacy':
       return result(`${arrival}${has(g, 'story-clinic') ? '药堂' : has(g, 'story-care-network') ? '互助簿' : '守望阵'}已经能由后来者接续。人们问起这段生活以后怎样继续：仍等你回来主持，还是成为他们自己能照料的事情？`, '当年的安排已经有了回响，你现在决定这份守望如何留下。', [
         c('交给城中人，自己仍是其中一员', '薪火留城：每年道心 +0.5；原有药堂/守望安排继续，年谱留下接续者', { flag: 'story-guardian-inherited', stats: { mind: 8, reputation: 8 } }, `你把${name}的旧札与自己的补注放在一起。后来者不必成为另一个你，也能把这盏灯继续点下去。`),
@@ -266,13 +266,13 @@ export function storyLegacy(g: Game): string {
   const path = currentStoryPath(g);
   if (!path) return '';
   const name = storyPerson(g, path)?.name ?? '同行者';
-  if (middleAge(g, path) === undefined) return `你选择了${pathNames[path]}，与${name}经手的旧物和愿望有了联系；这段人生尚未等来下一次转折。`;
+  if (middleAge(g, path) === undefined) return `你选择了${pathNames[path]}，与${name}经手的旧物和愿望有了联系。`;
   const echoed = g.seen[`story-${path}-echo`] !== undefined;
   if (!echoed) {
     const plan = path === 'guardian' ? has(g, 'story-clinic') ? '持续供给药堂' : has(g, 'story-care-network') ? '教各家互相照料' : '修复旧城山道'
       : path === 'lone' ? has(g, 'story-school') ? '开放孤峰共学' : has(g, 'story-fieldnotes') ? '带着问题走进山河' : '继续独自推演残卷'
       : has(g, 'story-waystations') ? '沿途设立驿站' : has(g, 'story-fairtrade') ? '与产药人直订长约' : has(g, 'story-ledger') ? '公开旧账、重建信用' : '接掌商路欠契';
-    return `你决定${plan}，与${name}相连的往事因此有了新的方向；尚未等到岁月给出回音。`;
+    return `你决定${plan}，与${name}相连的往事因此有了新的方向。`;
   }
   if (path === 'guardian') return has(g, 'story-clinic') ? `你与${name}留下的旧方在一座药堂里延续，照料过的人也学会照料后来者。`
     : has(g, 'story-care-network') ? `你与${name}的守望之约成了一本互助簿，一城人学会了相互照料。`
@@ -289,14 +289,12 @@ export function storyView(g: Game) {
   const path = currentStoryPath(g), person = path ? storyPerson(g, path) : undefined;
   const chapters = g.logs.filter(entry => entry.title.startsWith('命途 ·') || ['山城守望之约', '孤峰问道之约', '山河商路之约'].includes(entry.title)).map(({ age, title, text }) => ({ age, title, text }));
   const fate = fateInfluence(g);
-  const middle = path ? middleAge(g, path) : undefined;
-  const next = !g.alive ? '此生已结卷，留下的选择与回响会随传记保存。'
-    : g.pending && registry[g.pending]?.kind === 'turning' ? '眼前是会改变此生的决定，托管也会等你亲自回答。'
-    : !path ? '日常修行会继续。出身、志向、同道与当前处境会带来不同的邀约。'
-    : middle === undefined ? '安排已在按年执行；新的处境会结合你的手艺、行旅与同道关系出现。'
-    : g.seen[`story-${path}-echo`] === undefined ? '让选择运行一段岁月。它的结果会自动回到年谱，无需年年确认。'
-    : g.seen[`story-${path}-legacy`] === undefined ? '旧选择已有回响。到元婴境，或寿元渐近时，你会决定怎样把它留下。'
-    : '这段命途已经落定，留下的生活与收益继续；后面的修行仍由你安排。';
+  const next = !g.alive ? '此生已结卷，留下的选择与经历随传记保存。'
+    : g.pending && registry[g.pending]?.kind === 'turning' ? '眼前有一件需要你亲自决定的事。'
+    : !path ? '你在此地修行、谋生，与身边的人来往。'
+    : path === 'guardian' ? '城中灯火与你的修行一起延续，日常照应已有人各自承担。'
+    : path === 'lone' ? '残卷摊在案前，手边有你亲自留下的批注。'
+    : '沿途的人家仍在往来，桌上放着你经手的行路簿。';
   return {
     title: path ? pathNames[path] : '此生尚待展开',
     description: path ? (g.alive ? fate.description : storyLegacy(g)) : '每一段人生从不同的处境出发。少数重要选择会改变你遇见的人、生活的安排与最终留下的故事。',

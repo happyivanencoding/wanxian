@@ -1,6 +1,8 @@
 import { ERAS, FOCUSES, HOMES, ITEMS, ORIGINS, REGIONS, ROUTES, SECTS } from './data.ts';
 import { EVENT_MAP } from './events.ts';
 import { archiveLife, earnedAchievements } from './engine.ts';
+import { isValidExpeditions } from './expeditions.ts';
+import { PREPARATION_METHODS, preparationTarget } from './progression.ts';
 import type { Game, Profile } from './types.ts';
 
 export const SAVE_KEY = 'wanxian-life:profile:v1';
@@ -29,7 +31,7 @@ export function validGame(value: unknown): value is Game {
   if (!object(g.stats) || !statKeys.every(k => number((g.stats as ObjectValue)[k], 0, 100))) return false;
   if (!object(g.home) || !HOMES.every(h => number((g.home as ObjectValue)[h.id], 0, h.max) && Number.isInteger((g.home as ObjectValue)[h.id]))) return false;
   if (!object(g.inventory) || !Object.entries(g.inventory).every(([k, n]) => contains(ITEMS, k) && number(n, 0, 1e7) && Number.isInteger(n))) return false;
-  if (g.equipped !== null && (!['sword', 'talisman'].includes(g.equipped as string) || !number(g.inventory[g.equipped as string], 1))) return false;
+  if (g.equipped !== null && (!ITEMS.some(item => item.id === g.equipped && item.kind === 'gear') || !number(g.inventory[g.equipped as string], 1))) return false;
   if (!strings(g.flags) || !strings(g.visited) || !g.visited.every(id => contains(REGIONS, id))) return false;
   if (!object(g.seen) || !Object.entries(g.seen).every(([id, age]) => Boolean(EVENT_MAP[id]) && number(age, 0, 10000))) return false;
   if (g.pending !== null && (!text(g.pending) || !EVENT_MAP[g.pending])) return false;
@@ -37,6 +39,13 @@ export function validGame(value: unknown): value is Game {
   if (!Array.isArray(g.snapshots) || !g.snapshots.every(s => object(s) && number(s.age, 0, 10000) && number(s.realm, 0, 6) && ['health', 'mind', 'stones', 'progress'].every(k => number(s[k])))) return false;
   if (!Array.isArray(g.delayed) || !g.delayed.every(d => object(d) && number(d.at, 0, 10000) && text(d.title) && text(d.text) && validEffect(d.effect))) return false;
   if (!Array.isArray(g.npcs) || g.npcs.length !== 4 || !g.npcs.every(n => object(n) && ['id', 'name', 'title', 'personality', 'story'].every(k => text(n[k])) && ['friend', 'rival', 'companion', 'mentor'].includes(n.role as string) && number(n.realm, 0, 6) && Number.isInteger(n.realm) && number(n.relation, 0, 100) && number(n.aptitude, 0, 100) && number(n.progress) && number(n.age, 0, 10000) && number(n.lifespan, 1, 10000) && number(n.lastInteraction, -1, 10000) && typeof n.alive === 'boolean')) return false;
+  if (g.preparation !== undefined) {
+    const p = g.preparation;
+    if (!object(p) || Object.keys(p).some(key => !['realm', 'selected', 'progress'].includes(key)) || !Number.isInteger(p.realm) || p.realm !== g.realm || !number(p.realm, 0, 5) || (p.selected !== null && !PREPARATION_METHODS.includes(p.selected as typeof PREPARATION_METHODS[number])) || !object(p.progress)) return false;
+    const progress = p.progress;
+    if (Object.keys(progress).length !== PREPARATION_METHODS.length || !PREPARATION_METHODS.every(method => number(progress[method], 0, preparationTarget(p.realm as number, method)))) return false;
+  }
+  if (!isValidExpeditions(g.expeditions, g as unknown as Game)) return false;
   return typeof g.alive === 'boolean' && (g.ending === null || text(g.ending)) && (!g.alive || (g.ending === null && g.realm < 6));
 }
 export function parseProfile(raw: string): Profile {

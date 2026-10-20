@@ -19,6 +19,7 @@ export function TrainingInsight({ game: g }: { game: Game }) {
     [`道心 · ${Math.round(g.stats.mind)}`, `×${decimal(f.mind)}`],
     [`体魄 · ${Math.round(g.stats.health)}`, `×${decimal(f.health)}`],
     ['重大抉择留下的道路', `×${decimal(f.fate)}`],
+    ['此生练成的本领', `×${decimal(f.attainments)}`],
   ];
   return <details className="cultivation-insight" data-testid="training-insight">
     <summary>修炼收益从哪里来？</summary>

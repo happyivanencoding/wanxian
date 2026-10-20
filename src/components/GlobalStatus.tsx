@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { Game, Stat } from '../game/types.ts';
 import { REALMS, STAT_NAMES } from '../game/data.ts';
 import { realmName } from '../game/engine.ts';
@@ -7,13 +8,14 @@ import './GlobalStatus.css';
 const VISIBLE_STATS: Stat[] = ['health', 'mind', 'foundation', 'insight', 'reputation', 'alchemy', 'combat'];
 
 export default function GlobalStatus({ game }: { game: Game }) {
-  return <section className="global-status" aria-label="常驻人物与资源状态" data-testid="global-status">
+  const [expanded, setExpanded] = useState(false);
+  return <section className={`global-status ${expanded ? 'status-expanded' : ''}`} aria-label="常驻人物与资源状态" data-testid="global-status">
     <div className="status-person">
       <div className="status-name">
         <strong title={game.name}>{game.name}</strong>
         <span>{realmName(game)}</span>
       </div>
-      <small>修为 {numberText(game.progress)} / {numberText(REALMS[game.realm].need)}</small>
+      <small className="status-desktop-progress">修为 {numberText(game.progress)} / {numberText(REALMS[game.realm].need)}</small><small className="status-mobile-age">{game.age}岁 · 寿元尚余 {Math.max(0, game.lifespan - game.age)}年</small>
     </div>
     <div className="status-calendar">
       <span className="status-kicker">现世纪年</span>
@@ -30,6 +32,7 @@ export default function GlobalStatus({ game }: { game: Game }) {
         <strong data-testid="status-actions">{game.actionsLeft}<small> / 3</small></strong>
       </div>
     </div>
+    <button className={`status-expand ${game.stats.health < 35 && game.alive ? 'status-critical' : ''}`} data-testid="status-expand" aria-expanded={expanded} onClick={() => setExpanded(value => !value)}>{expanded ? '收起属性' : `体魄 ${Math.round(game.stats.health)} · 道心 ${Math.round(game.stats.mind)} · 全部属性`}</button>
     <div className="status-attributes" aria-label="人物属性">
       {VISIBLE_STATS.map(stat => <div
         className={`status-attribute ${stat === 'health' && game.stats.health < 35 ? 'critical' : ''}`}

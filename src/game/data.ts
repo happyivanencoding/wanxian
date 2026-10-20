@@ -56,7 +56,7 @@ export const HOMES = [
   { id: 'library', name: '藏经书架', icon: 'book', cost: 65, max: 3, description: '每级增加 0.4 点年度悟性；参悟时收益翻倍。' },
   { id: 'garden', name: '灵草药圃', icon: 'leaf', cost: 85, max: 3, description: '每级每年产 1 株灵草，云泽再额外产 1 株。' },
 ];
-export interface Item { id: string; name: string; mark: string; kind: 'material' | 'pill' | 'gear' | 'book'; price: number; minRealm: number; description: string; effect?: Effect; }
+export interface Item { id: string; name: string; mark: string; kind: 'material' | 'pill' | 'gear' | 'book'; price: number; minRealm: number; description: string; effect?: Effect; market?: boolean; source?: string }
 export const ITEMS: Item[] = [
   { id: 'herb', name: '青灵草', mark: '草', kind: 'material', price: 8, minRealm: 0, description: '炼丹常用材料。采药、历练与药圃均可产出。' },
   { id: 'jade', name: '温润灵玉', mark: '玉', kind: 'material', price: 24, minRealm: 0, description: '凝灵丹的辅材，可在历练中偶得。' },
@@ -67,6 +67,9 @@ export const ITEMS: Item[] = [
   { id: 'longevity', name: '延寿丹', mark: '寿', kind: 'pill', price: 320, minRealm: 2, description: '增加寿元上限 30 年。一生最多服用三枚。', effect: { lifespan: 30 } },
   { id: 'sword', name: '秋水剑', mark: '剑', kind: 'gear', price: 95, minRealm: 1, description: '装备后历练有效战技 +15；不永久改变基础战技。' },
   { id: 'talisman', name: '玄龟护符', mark: '符', kind: 'gear', price: 120, minRealm: 1, description: '装备后历练受伤概率降低 40%。与兵器共用一个法宝位。' },
+  { id: 'sect-sword', name: '青岚阵纹剑', mark: '阵', kind: 'gear', price: 160, minRealm: 1, market: false, source: '学会青岚剑阵时授予，每世一件', description: '装备后历练有效战技 +24。宗门授予的法宝；出售后不会补发，与其他法宝共用一个装备位。' },
+  { id: 'sect-satchel', name: '百草药囊', mark: '药', kind: 'gear', price: 150, minRealm: 1, market: false, source: '学会百草药理时授予，每世一件', description: '装备后回春丹、清心丹恢复量 +8，炼丹成功率 +4 个百分点。出售后不会补发，与其他法宝共用一个装备位。' },
+  { id: 'sect-seal', name: '问星法印', mark: '星', kind: 'gear', price: 200, minRealm: 2, market: false, source: '学会观象诀时授予，每世一件', description: '装备后突破成功率 +3.5 个百分点，仍受90%上限约束。出售后不会补发，与其他法宝共用一个装备位。' },
   { id: 'manual', name: '太素养气篇', mark: '经', kind: 'book', price: 70, minRealm: 0, description: '研读增加悟性 12、根基 8。此书一生只可领悟一次。', effect: { stats: { insight: 12, foundation: 8 }, flag: 'read-manual' } },
   { id: 'swordbook', name: '问剑十三式', mark: '诀', kind: 'book', price: 110, minRealm: 1, description: '研读增加战技 18。一生只可领悟一次。', effect: { stats: { combat: 18 }, flag: 'read-swordbook' } },
 ];

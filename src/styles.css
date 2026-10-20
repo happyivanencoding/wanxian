@@ -5084,3 +5084,355 @@ button:not(:disabled):active {
     animation:none
   }
 }
+
+/* Cultivation app surfaces: one focused activity per screen. */
+.mobile-bottom-nav,.mobile-subnav,.status-expand,.status-mobile-age { display:none; }
+.compact-panel-title { display:flex; justify-content:space-between; align-items:center; gap:14px; margin-bottom:12px; }
+.compact-panel-title h1,.compact-panel-title h2 { font:600 23px/1.45 var(--serif); margin:0; }
+.compact-panel-title .eyebrow { display:block; font-size:10px; color:var(--gold); margin-bottom:5px; }
+.compact-panel-title>svg { flex-shrink:0; color:var(--gold); }
+.cultivation-home-grid { display:grid; grid-template-columns:minmax(0,1.35fr) minmax(280px,.8fr); gap:24px; align-items:start; }
+.cultivation-primary,.cultivation-secondary { display:grid; gap:18px; min-width:0; }
+.current-cultivation { margin:0; }
+.cultivation-percent { font:30px/1 var(--serif); color:var(--jade); }
+.cultivation-percent small { font-size:14px; }
+.cultivation-progress,.preparation-current progress { display:block; width:100%; border:0; border-radius:6px; height:7px; appearance:none; overflow:hidden; background:var(--line); }
+.cultivation-progress::-webkit-progress-bar,.preparation-current progress::-webkit-progress-bar { background:var(--line); border-radius:6px; }
+.cultivation-progress::-webkit-progress-value,.preparation-current progress::-webkit-progress-value { background:var(--jade); border-radius:6px; }
+.cultivation-progress::-moz-progress-bar,.preparation-current progress::-moz-progress-bar { background:var(--jade); }
+.cultivation-progress-caption { display:flex; justify-content:space-between; flex-wrap:wrap; gap:4px 12px; font-size:12px; color:var(--muted); margin-top:8px; }
+.current-focus { display:flex; align-items:center; gap:12px; width:100%; padding:14px 0; margin:13px 0 0; text-align:left; border-top:1px solid var(--line); border-bottom:1px solid var(--line); }
+.current-focus>svg { color:var(--jade); flex-shrink:0; }
+.current-focus>span:nth-child(2) { display:flex; align-items:baseline; flex-wrap:wrap; gap:10px; min-width:0; }
+.current-focus small { color:var(--muted); font-size:12px; }
+.current-focus strong { font-size:16px; }
+.focus-change { margin-left:auto; font-size:13px; color:var(--jade); display:flex; align-items:center; gap:3px; flex-shrink:0; }
+.next-realm { display:flex; justify-content:space-between; flex-wrap:wrap; gap:4px 12px; font-size:12px; color:var(--muted); margin:13px 0; }
+.next-realm>span:first-child { color:var(--ink); font-weight:600; }
+.focus-picker-grid { display:grid; gap:10px; }
+.focus-picker-option { display:flex; align-items:center; gap:14px; border:1px solid var(--line); border-radius:8px; padding:15px; text-align:left; }
+.focus-picker-option.active { border-color:var(--jade); background:var(--jade-wash); }
+.focus-picker-option>svg { flex-shrink:0; color:var(--jade); }
+.focus-picker-option>span { flex:1; min-width:0; }
+.focus-picker-option strong { display:block; font-size:16px; margin-bottom:4px; }
+.focus-picker-option small { display:block; color:var(--muted); font-size:13px; line-height:1.75; }
+.opportunity-preview { display:flex; align-items:center; gap:13px; width:100%; text-align:left; background:var(--jade-wash); border:1px solid var(--line); border-radius:8px; padding:16px; }
+.opportunity-mark { display:grid; place-items:center; color:var(--gold); }
+.opportunity-preview>span:nth-child(2) { flex:1; min-width:0; }
+.opportunity-preview>svg { color:var(--jade); flex-shrink:0; }
+.opportunity-preview small { display:block; color:var(--muted); font-size:12px; margin-bottom:5px; }
+.opportunity-preview strong { display:block; font:600 17px/1.5 var(--serif); }
+.preparation-description,.preparation-empty { font-size:13px; line-height:1.85; color:var(--muted); }
+.preparation-empty { margin-top:12px; }
+.preparation-current { margin-top:15px; }
+.preparation-current>div { display:flex; justify-content:space-between; gap:10px; font-size:14px; margin-bottom:9px; }
+.preparation-current>div>span { color:var(--jade); font-variant-numeric:tabular-nums; }
+.preparation-current p { font-size:13px; line-height:1.8; color:var(--muted); margin-top:10px; }
+.preparation-current>small { display:block; font-size:12px; color:var(--jade); margin-top:5px; }
+.preparation-options { display:grid; gap:12px; margin-top:16px; }
+.preparation-option { border:1px solid var(--line); border-radius:7px; padding:15px; }
+.preparation-option.selected { border-color:var(--jade); background:var(--jade-wash); }
+.preparation-option header { display:flex; justify-content:space-between; gap:10px; align-items:baseline; }
+.preparation-option h3 { font-size:17px; }
+.preparation-option header>span { color:var(--muted); font-size:12px; }
+.preparation-option p { font-size:13px; line-height:1.8; margin-top:8px; }
+.preparation-option .method-cost,.preparation-option .method-benefit { color:var(--muted); }
+.method-cost strong,.method-benefit strong { display:block; font-size:12px; color:var(--ink); font-weight:500; }
+.preparation-option>.button { margin-top:12px; }
+.preparation-option>small { display:block; margin-top:7px; font-size:12px; color:var(--red); }
+.preparation-cancel { margin-top:14px; font-size:13px; }
+.life-summary-link { display:block; text-align:left; width:100%; margin:0; }
+.life-summary-link>.eyebrow { color:var(--gold); font-size:10px; }
+.life-summary-link h2 { font:600 22px/1.5 var(--serif); margin:8px 0; }
+.life-summary-link p { color:var(--muted); font-size:14px; line-height:1.8; }
+.life-summary-link>span:last-child { display:flex; align-items:center; justify-content:space-between; font-size:13px; color:var(--jade); margin-top:16px; }
+.cultivation-quick-links { display:grid; background:var(--paper); border:1px solid var(--line); border-radius:8px; }
+.cultivation-quick-links button { display:flex; align-items:center; gap:12px; padding:17px; text-align:left; font-size:14px; }
+.cultivation-quick-links button+button { border-top:1px solid var(--line); }
+.cultivation-quick-links button span { flex:1; }
+.cultivation-quick-links svg { color:var(--jade); }
+.life-identity { margin-bottom:20px; }
+.life-identity>.eyebrow { color:var(--gold); font-size:11px; }
+.life-identity h1 { font:600 30px/1.5 var(--serif); display:flex; align-items:baseline; flex-wrap:wrap; gap:14px; margin:8px 0; }
+.life-identity h1 small { font-size:16px; color:var(--jade); }
+.life-identity p { font-size:14px; color:var(--muted); line-height:1.8; }
+.life-identity>div { display:flex; flex-wrap:wrap; gap:12px 22px; margin-top:15px; font-size:13px; color:var(--muted); }
+.life-identity strong { color:var(--ink); font-weight:500; }
+.attainments-panel { margin-bottom:20px; }
+.attainments-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:16px; }
+.attainments-list article { border-left:2px solid var(--gold); padding-left:13px; }
+.attainments-list h3 { font:600 17px/1.5 var(--serif); margin-bottom:5px; }
+.attainments-list p { color:var(--muted); font-size:14px; line-height:1.8; }
+.breakthrough-preparation { padding:15px; background:var(--jade-wash); border-radius:7px; margin-bottom:18px; }
+.breakthrough-preparation h3 { font-size:16px; margin-bottom:7px; }
+.breakthrough-preparation p { color:var(--muted); font-size:14px; line-height:1.85; }
+.attainment-reveal { display:grid; gap:22px; margin:5px 0 24px; }
+.attainment-reveal article { text-align:center; }
+.attainment-reveal svg { color:var(--gold); margin-bottom:10px; }
+.attainment-reveal h3 { font:600 24px/1.6 var(--serif); margin-bottom:9px; }
+.attainment-reveal p { font-size:15px; line-height:1.9; color:var(--muted); }
+.expedition-offers { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:18px; }
+.expedition-offer h2,.expedition-active h2,.expedition-results>h2 { font:600 23px/1.5 var(--serif); margin-bottom:13px; }
+.expedition-offer>p { font-size:14px; color:var(--muted); line-height:1.9; }
+.expedition-known { display:grid; gap:10px; margin:17px 0; font-size:13px; color:var(--muted); }
+.expedition-known span { display:flex; align-items:flex-start; gap:8px; line-height:1.8; }
+.expedition-known svg { flex-shrink:0; margin-top:3px; color:var(--gold); }
+.expedition-reason { display:block; color:var(--muted); margin-top:9px; font-size:13px; }
+.expedition-heading { display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+.expedition-heading .eyebrow { font-size:11px; color:var(--gold); }
+.expedition-heading>span:last-child { font-size:12px; color:var(--muted); }
+.expedition-scene { white-space:pre-line; font:17px/2 var(--serif); margin:15px 0 25px; }
+.expedition-choices { display:grid; gap:12px; }
+.expedition-choices .event-choice>span:first-child { flex:1; min-width:0; }
+.expedition-choices .event-choice strong { font-size:16px; }
+.expedition-choices .event-choice small { font-size:14px; }
+.expedition-retreat { margin-top:22px; padding-top:15px; border-top:1px solid var(--line); }
+.expedition-retreat p { font-size:13px; color:var(--muted); line-height:1.8; }
+.expedition-retreat .text-button { margin-top:12px; font-size:14px; }
+.expedition-results { margin-top:22px; }
+.expedition-result { padding:17px 0; }
+.expedition-result+.expedition-result { border-top:1px solid var(--line); }
+.expedition-result .eyebrow { font-size:11px; color:var(--gold); }
+.expedition-result h3 { font:600 20px/1.6 var(--serif); margin:7px 0; }
+.expedition-result p { white-space:pre-line; font-size:15px; line-height:1.95; color:var(--muted); }
+.expedition-result summary { cursor:pointer; font-size:14px; line-height:1.8; }
+.expedition-resume { width:100%; display:flex; align-items:center; justify-content:center; gap:12px; padding:14px 18px; font-size:14px; line-height:1.6; background:var(--jade-wash); color:var(--jade); text-align:left; }
+.expedition-resume svg { flex-shrink:0; }
+.sect-specialty { margin:20px 0; }
+.sect-specialty .eyebrow { font-size:11px; color:var(--gold); }
+.sect-specialty h2 { font:600 23px/1.5 var(--serif); margin:8px 0; }
+.sect-specialty p { font-size:15px; line-height:1.85; color:var(--muted); margin-bottom:16px; }
+.sect-specialty>small { display:block; color:var(--muted); font-size:13px; margin-top:9px; }
+.companion-trait { border:1px solid var(--line); border-radius:6px; padding:13px; margin-bottom:16px; background:var(--bg); }
+.companion-trait h3 { font:600 17px/1.6 var(--serif); display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.companion-trait h3 span { font:11px/1.5 sans-serif; color:var(--gold); }
+.companion-trait p { font-size:14px; color:var(--muted); line-height:1.8; margin:7px 0; }
+.companion-trait small { font-size:12px; color:var(--muted); line-height:1.8; }
+.companion-trait .companion-ready { color:var(--jade); }
+@media(max-width:1050px) {
+  .cultivation-home-grid { grid-template-columns:minmax(0,1fr); }
+  .cultivation-secondary { grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
+}
+@media(max-width:640px) {
+  .app-shell.in-game .sidebar { display:none; }
+  .app-shell.in-game .app-main { margin-left:0; }
+  .app-shell.in-game .topbar { height:46px; min-height:46px; padding:0 12px; }
+  .app-shell.in-game .breadcrumb { font-size:14px; }
+  .app-shell.in-game .breadcrumb>span,.app-shell.in-game .breadcrumb>svg,.app-shell.in-game .breadcrumb>small { display:none; }
+  .app-shell.in-game .topbar .save-status { display:none; }
+  .app-shell.in-game .topbar-actions { gap:3px; }
+  .app-shell.in-game .topbar .icon-button { width:40px; height:40px; }
+  .app-shell.in-game .topbar .save-button { min-height:40px; padding:9px 11px; font-size:13px; }
+  .app-shell.in-game .global-status { display:grid; grid-template-columns:minmax(0,1fr) 132px; gap:9px 10px; padding:10px 13px 7px; }
+  .app-shell.in-game .status-name strong { font-size:17px; }
+  .app-shell.in-game .status-name span { font-size:11px; }
+  .app-shell.in-game .status-mobile-age { display:block; font-size:12px; white-space:normal; }
+  .app-shell.in-game .status-desktop-progress,.app-shell.in-game .status-calendar { display:none; }
+  .app-shell.in-game .status-resources { grid-column:2; padding:0; border:0; }
+  .app-shell.in-game .status-resource { gap:3px; padding:0 8px; }
+  .app-shell.in-game .status-resource:first-child { padding-left:0; }
+  .app-shell.in-game .status-resource>span { font-size:11px; }
+  .app-shell.in-game .status-resource>strong { font-size:17px; }
+  .app-shell.in-game .status-resource>strong small { font-size:11px; }
+  .app-shell.in-game .status-expand { grid-column:1/-1; display:block; width:100%; min-height:28px; font-size:11px; color:var(--muted); border-top:1px solid var(--line); padding-top:5px; text-align:left; }
+  .app-shell.in-game .status-attributes { display:none; }
+  .app-shell.in-game .status-expanded .status-attributes { display:grid; grid-column:1/-1; grid-template-columns:repeat(4,minmax(0,1fr)); gap:11px; padding:7px 0; }
+  .app-shell.in-game .status-expanded .status-calendar { display:flex; grid-column:1/-1; text-align:left; border-top:1px solid var(--line); padding-top:7px; }
+  .app-shell.in-game .status-calendar .status-kicker { display:none; }
+  .app-shell.in-game .status-attribute>span { font-size:12px; }
+  .app-shell.in-game .status-attribute>strong { font-size:15px; }
+  .app-shell.in-game .page-content { padding:12px 12px calc(170px + env(safe-area-inset-bottom)); }
+  .mobile-bottom-nav { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); position:fixed; inset:auto 0 0; z-index:40; min-height:62px; padding:3px 8px max(4px,env(safe-area-inset-bottom)); background:var(--paper); border-top:1px solid var(--line); }
+  .mobile-bottom-nav button { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; min-height:55px; position:relative; color:var(--muted); }
+  .mobile-bottom-nav button>span { font-size:12px; line-height:1.4; }
+  .mobile-bottom-nav button.active { color:var(--jade); background:var(--jade-wash); border-radius:8px; }
+  .mobile-bottom-nav button>i { position:absolute; top:8px; left:calc(50% + 12px); width:5px; height:5px; background:var(--gold); border-radius:50%; }
+  .mobile-subnav { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); padding:6px 12px; gap:5px; border-bottom:1px solid var(--line); background:var(--paper); }
+  .mobile-subnav button { min-height:42px; border-radius:6px; font-size:14px; color:var(--muted); }
+  .mobile-subnav button.active { color:var(--jade); background:var(--jade-wash); font-weight:600; }
+  .app-shell.in-game .time-dock:has(> .year-clock) { display:grid; grid-template-columns:minmax(0,1fr) auto; bottom:calc(62px + env(safe-area-inset-bottom)); left:0; right:0; min-height:0; gap:5px 12px; padding:8px 12px; }
+  .app-shell.in-game .time-dock .dock-life { display:none; }
+  .app-shell.in-game .year-clock { grid-column:1/-1; gap:4px; }
+  .app-shell.in-game .year-clock-caption { font-size:10px; }
+  .app-shell.in-game .year-clock-caption small { display:none; }
+  .app-shell.in-game .year-clock-countdown { font-size:10px; }
+  .app-shell.in-game .year-clock-track { height:3px; }
+  .app-shell.in-game .time-controls { gap:7px; flex:none; }
+  .app-shell.in-game .time-controls .button { min-height:40px; font-size:14px; padding:8px 15px; }
+  .app-shell.in-game .time-controls .button svg { width:17px; }
+  .app-shell.in-game .speed-select { min-height:40px; width:58px; font-size:14px; padding:6px; }
+  .app-shell.in-game .auto-toggle { display:flex; flex-direction:row; width:auto; gap:8px; text-align:left; font-size:12px; min-height:40px; }
+  .app-shell.in-game .auto-toggle small { display:none; }
+  .app-shell.in-game .switch-track { width:33px; height:20px; }
+  .app-shell.in-game .switch-track:after { width:14px; height:14px; }
+  .app-shell.in-game .auto-toggle input:checked+.switch-track:after { transform:translateX(13px); }
+  .app-shell.in-game .toast { bottom:calc(151px + env(safe-area-inset-bottom)); font-size:14px; }
+  .app-shell.in-game .panel { padding:17px; }
+  .cultivation-home-grid { gap:15px; }
+  .cultivation-primary,.cultivation-secondary { display:grid; grid-template-columns:minmax(0,1fr); gap:13px; }
+  .current-cultivation .compact-panel-title { margin-bottom:10px; }
+  .compact-panel-title h1,.compact-panel-title h2 { font-size:21px; }
+  .compact-panel-title .eyebrow { font-size:11px; }
+  .cultivation-percent { font-size:28px; }
+  .cultivation-progress-caption { font-size:11px; }
+  .current-focus { padding:12px 0; margin-top:10px; }
+  .current-focus small { font-size:12px; }
+  .current-focus strong { font-size:15px; }
+  .next-realm { font-size:12px; gap:5px; margin:11px 0; }
+  .app-shell.in-game .current-cultivation>.button { min-height:44px; font-size:15px; }
+  .current-cultivation>.cultivation-insight { display:none; }
+  .opportunity-preview { padding:13px; min-height:79px; }
+  .opportunity-preview strong { font-size:16px; }
+  .preparation-description,.preparation-empty,.preparation-current p { font-size:14px; }
+  .preparation-panel .preparation-description { display:none; }
+  .preparation-current>small { font-size:12px; }
+  .preparation-option p { font-size:14px; }
+  .preparation-cancel { min-height:44px; font-size:14px; }
+  .life-summary-link h2 { font-size:20px; }
+  .life-summary-link p { font-size:14px; }
+  .life-summary-link>span:last-child { font-size:14px; }
+  .life-identity h1 { font-size:27px; }
+  .life-identity p,.life-identity>div { font-size:14px; }
+  .app-shell.in-game .story-panel { padding:17px; }
+  .app-shell.in-game .story-description,.app-shell.in-game .story-chapters p,.app-shell.in-game .story-effects li { font-size:14px; }
+  .app-shell.in-game .story-person small { font-size:12px; }
+  .app-shell.in-game .story-person-link { font-size:12px; }
+  .app-shell.in-game .story-history h3,.app-shell.in-game .story-effects h3 { font-size:13px; }
+  .app-shell.in-game .story-chapters h4 { font-size:16px; }
+  .app-shell.in-game .story-history-link,.app-shell.in-game .fate-arc summary { font-size:14px; min-height:44px; }
+  .app-shell.in-game .fate-arc p { font-size:14px; }
+  .app-shell.in-game .fate-arc-effects>span { font-size:12px; }
+  .app-shell.in-game .section-title h2 { font-size:25px; }
+  .app-shell.in-game .section-title p { font-size:14px; max-width:none; line-height:1.8; }
+  .app-shell.in-game .section-title { margin-bottom:17px; }
+  .app-shell.in-game .button { min-height:44px; font-size:14px; }
+  .app-shell.in-game .text-button { min-height:40px; font-size:14px; }
+  .app-shell.in-game .filter-chips button { min-height:40px; font-size:13px; }
+  .app-shell.in-game .tab-bar>button { min-height:44px; font-size:14px; }
+  .app-shell.in-game .tab-note { font-size:12px; white-space:normal; }
+  .app-shell.in-game .notice { font-size:14px; line-height:1.8; }
+  .app-shell.in-game .notice button { font-size:14px; }
+  .app-shell.in-game .quiet,.app-shell.in-game .footnote { font-size:12px; line-height:1.85; }
+  .app-shell.in-game .item-card>p,.app-shell.in-game .recipe-card>p,.app-shell.in-game .action-card>p,.app-shell.in-game .facility-card>p,.app-shell.in-game .sect-choice>p,.app-shell.in-game .person-story,.app-shell.in-game .person-story-link { font-size:14px; line-height:1.85; }
+  .app-shell.in-game .person-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }
+  .app-shell.in-game .person-actions>.button { min-height:44px; font-size:14px; }
+  .app-shell.in-game .bond-button { min-height:44px; font-size:14px; }
+  .app-shell.in-game .person-metrics { font-size:12px; }
+  .companion-trait small { font-size:13px; }
+  .app-shell.in-game .event-story { font-size:17px; line-height:1.95; }
+  .app-shell.in-game .event-choice { padding:15px 12px; min-height:52px; gap:11px; }
+  .app-shell.in-game .event-choice strong { font-size:16px; }
+  .app-shell.in-game .event-choice small,.app-shell.in-game .event-cause p { font-size:14px; }
+  .app-shell.in-game .event-choice em { font-size:12px; }
+  .app-shell.in-game .event-footnote { font-size:12px; line-height:1.85; }
+  .app-shell.in-game .modal-header { padding:17px; }
+  .app-shell.in-game .modal-body { padding:17px; }
+  .app-shell.in-game .modal-header h2 { font-size:22px; }
+  .app-shell.in-game .modal-header>.icon-button { width:42px; height:42px; flex-shrink:0; }
+  .app-shell.in-game .modal-header>div { min-width:0; }
+  .app-shell.in-game .breakthrough-summary>p,.app-shell.in-game .pill-option small { font-size:14px; }
+  .app-shell.in-game .cultivation-insight p { font-size:13px; }
+  .app-shell.in-game .cultivation-insight dt,.app-shell.in-game .cultivation-insight dd { font-size:12px; }
+  .app-shell.in-game .cultivation-insight summary { font-size:14px; min-height:40px; }
+  .app-shell.in-game .log-content p { font-size:14px; line-height:1.9; }
+  .app-shell.in-game .log-content h4 { font-size:15px; }
+  .expedition-offers { grid-template-columns:minmax(0,1fr); }
+  .expedition-offer>p,.expedition-known { font-size:14px; }
+  .expedition-offer h2,.expedition-active h2 { font-size:23px; }
+  .expedition-scene { font-size:17px; }
+  .expedition-retreat p { font-size:14px; }
+  .expedition-result p { font-size:15px; }
+  .app-shell.in-game .pending-banner { gap:12px; min-height:76px; padding:13px; margin-bottom:13px; }
+  .app-shell.in-game .pending-banner strong { font-size:16px; }
+  .app-shell.in-game .pending-banner small { font-size:11px; }
+  .attainments-list { grid-template-columns:minmax(0,1fr); }
+}
+@media(max-width:360px) {
+  .app-shell.in-game .global-status { grid-template-columns:minmax(0,1fr) 116px; gap:8px; padding-inline:11px; }
+  .app-shell.in-game .status-name { flex-wrap:wrap; gap:3px 6px; }
+  .app-shell.in-game .status-resource>strong { font-size:16px; }
+  .app-shell.in-game .status-resource { padding-inline:6px; }
+  .app-shell.in-game .page-content { padding-inline:10px; }
+  .app-shell.in-game .auto-toggle { font-size:11px; gap:6px; }
+  .app-shell.in-game .time-controls .button { padding-inline:10px; }
+  .app-shell.in-game .panel { padding:15px; }
+  .current-focus>span:nth-child(2) { gap:4px; }
+  .current-focus small { display:none; }
+  .next-realm { font-size:12px; }
+}
+.preparation-focus { margin-top:12px; }
+.expedition-travel { margin-top:8px; }
+.item-source { color:var(--gold)!important; font-size:12px; line-height:1.8; }
+.life-training { margin-bottom:20px; }
+.life-training>.cultivation-insight { margin-top:0; border:0; padding-top:0; }
+@media(max-width:640px) {
+  .app-shell.in-game .status-expand.status-critical { color:var(--red); }
+  .app-shell.in-game .item-source { font-size:13px; }
+  .app-shell.in-game .region-detail>p,.app-shell.in-game .world-weather p { font-size:14px; line-height:1.85; }
+  .app-shell.in-game .metric-pairs span { font-size:12px; }
+  .app-shell.in-game .metric-pairs strong { font-size:15px; }
+  .app-shell.in-game .world-map { min-height:300px; }
+  .app-shell.in-game .map-node { min-width:52px; min-height:52px; }
+  .app-shell.in-game .map-node>span { width:44px; height:44px; }
+  .app-shell.in-game .map-node small { display:none; }
+  .app-shell.in-game .map-label { font-size:17px; top:12px; left:14px; }
+  .app-shell.in-game .map-label>small { display:none; }
+  .app-shell.in-game .map-footer>span:last-child { display:none; }
+}
+.region-lore { margin:16px 0; padding-top:14px; border-top:1px solid var(--line); }
+.region-lore p { font-size:13px; line-height:1.85; color:var(--muted); margin-bottom:10px; }
+.region-lore p>strong { display:block; font-size:11px; color:var(--gold); margin-bottom:4px; }
+.region-lore details { border-top:1px solid var(--line); padding-top:10px; }
+.region-lore summary { cursor:pointer; color:var(--jade); font-size:13px; padding:5px 0; }
+.region-lore ul { padding-left:18px; margin:10px 0; font-size:13px; line-height:1.9; color:var(--muted); }
+.sect-location-link { margin-top:10px; justify-content:center; }
+.life-world-identity { margin-bottom:20px; }
+.life-world-identity>.eyebrow { color:var(--gold); font-size:11px; }
+.life-world-identity h2 { font:600 25px/1.6 var(--serif); margin:8px 0; }
+.life-world-identity p { font-size:15px; line-height:1.85; color:var(--muted); }
+.life-world-identity>div { display:flex; flex-wrap:wrap; gap:7px; margin-top:14px; }
+.life-world-identity>div>span { font-size:12px; color:var(--jade); background:var(--jade-wash); padding:5px 9px; border-radius:4px; }
+@media(max-width:640px) {
+  .app-shell.in-game .region-lore p,.app-shell.in-game .region-lore ul { font-size:14px; }
+  .app-shell.in-game .region-lore p>strong { font-size:12px; }
+  .app-shell.in-game .region-lore summary { min-height:44px; font-size:14px; padding-top:10px; }
+  .app-shell.in-game .sect-location-link { grid-column:2; font-size:14px; }
+  .app-shell.in-game .entry-conditions { font-size:12px; flex-wrap:wrap; }
+  .app-shell.in-game .life-world-identity h2 { font-size:23px; }
+}
+@media(max-width:640px) {
+  .modal .form-field { font-size:14px; }
+  .modal .form-field small { font-size:13px; line-height:1.85; }
+  .modal .form-field input,.modal .form-field select { font-size:16px; min-height:44px; }
+  .modal .field-label { font-size:14px; }
+  .modal .select-card strong { font-size:16px; }
+  .modal .select-card span { font-size:14px; line-height:1.75; }
+  .modal .select-card small { font-size:12px; line-height:1.7; }
+  .modal .check-label { font-size:14px; line-height:1.8; }
+  .modal .check-label small { font-size:13px; line-height:1.8; }
+  .modal .help-grid p,.modal .modal-prose { font-size:14px; line-height:1.85; }
+  .modal .help-grid h3 { font-size:17px; }
+  .modal .help-facts span { font-size:12px; }
+  .modal .button { min-height:44px; font-size:14px; }
+}
+.expedition-time-note { display:none; }
+.expedition-results { margin:0 0 20px; }
+@media(max-width:640px) {
+  .app-shell.in-game .time-dock.expedition-time-dock:has(> .year-clock) { display:flex; padding:9px 13px; min-height:39px; }
+  .app-shell.in-game .expedition-time-dock>.year-clock,.app-shell.in-game .expedition-time-dock>.time-controls,.app-shell.in-game .expedition-time-dock>.auto-toggle { display:none; }
+  .app-shell.in-game .expedition-time-note { display:flex; align-items:center; justify-content:center; gap:9px; width:100%; color:var(--jade); font-size:12px; line-height:1.75; }
+  .app-shell.in-game .expedition-time-note>span { flex:1; text-align:left; }
+  .app-shell.in-game .cultivation-quick-links { display:none; }
+  .app-shell.in-game .expedition-active { margin-top:0; }
+  .app-shell.in-game .expedition-scene { font-size:16px; line-height:1.85; margin-bottom:18px; }
+  .app-shell.in-game .expedition-active .event-choice { padding:12px; }
+  .app-shell.in-game .expedition-active .event-choice strong { font-size:15px; }
+  .app-shell.in-game .expedition-active .event-choice small { font-size:14px; line-height:1.7; }
+  .app-shell.in-game .life-summary-link p { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+}
+.preparation-panel .compact-panel-title>div { min-width:0; }
+.preparation-panel .preparation-manage { flex-shrink:0; min-height:44px; font-size:14px; padding:9px 12px; }
+@media(max-width:640px) {
+  .preparation-panel .compact-panel-title { gap:10px; }
+  .preparation-panel .preparation-manage { font-size:14px; min-height:44px; }
+}

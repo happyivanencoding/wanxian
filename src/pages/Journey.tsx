@@ -1,28 +1,38 @@
-import { FOCUSES, ORIGINS, REALMS, ROUTES, SECTS, SECT_RANKS } from '../game/data.ts';
-import { breakthroughChance, currentRegion, getEvent, realmName, trainingRate, worldPhase } from '../game/engine.ts';
-import { Icon, MountainScene, Portrait, Seal } from '../components/Art.tsx';
+import { useState } from 'react';
+import { FOCUSES, REALMS } from '../game/data.ts';
+import { breakthroughChance, currentRegion, getEvent, realmName, trainingRate } from '../game/engine.ts';
+import { storyView } from '../game/story.ts';
+import { Icon } from '../components/Art.tsx';
 import { TrainingInsight } from '../components/CultivationInsight.tsx';
-import StoryPanel from '../components/StoryPanel.tsx';
-import { LogRow, Notice, SectionTitle, StatBar, numberText, type PageProps } from '../components/Common.tsx';
+import PreparationPanel from '../components/PreparationPanel.tsx';
+import { Modal, Notice, type PageProps } from '../components/Common.tsx';
+import { OpportunityPreview } from './Opportunities.tsx';
 
-export default function Journey({ game: g, act, navigate, openBreakthrough, openEvent, newLife }: PageProps) {
+export default function Journey(props: PageProps) {
+  const { game: g, act, navigate, openBreakthrough, openEvent, newLife } = props;
+  const [choosingFocus, setChoosingFocus] = useState(false);
   const realm = REALMS[g.realm], progress = Math.min(100, g.progress / realm.need * 100);
-  const region = currentRegion(g), phase = worldPhase(g), pendingEvent = getEvent(g);
-  return <div className="page-enter">
-    <div className="journey-hero"><MountainScene compact/><div className="journey-hero-wash"/><div className="journey-hero-copy"><span className="eyebrow">{g.yearName} · {2300 + g.age}年 / {region.name}</span><h1>{g.name}<span className="realm-badge">{realmName(g)}</span></h1><p>{g.alive ? realm.description : g.endingText}</p><div className="identity-tags"><span>{ORIGINS.find(o => o.id === g.origin)!.name}</span><i/><span>{ROUTES.find(r => r.id === g.route)!.name}</span><i/><span>{g.sect ? SECTS.find(s => s.id === g.sect)!.name + ' · ' + SECT_RANKS[g.sectRank] : '山野散修'}</span></div></div><div className="journey-age"><strong>{g.age}</strong><span>{g.alive ? '岁 / 此生' : '岁 / 结卷'}</span><small>{g.alive ? `寿元尚余 ${Math.max(0, g.lifespan - g.age)} 年` : g.ending}</small></div><Seal small>问道</Seal></div>
-    {!g.alive && <div className="ending-banner"><div><span className="eyebrow">此生已结卷</span><h3>{g.ending}</h3><p>这段人生已经收进前尘录。没有消失，只是换了一页。</p></div><button className="button" onClick={() => navigate('archives')}>翻阅传记 <Icon name="book"/></button><button className="button primary" onClick={newLife}>再入轮回 <Icon name="rebirth"/></button></div>}
-    {pendingEvent && <button className="pending-banner" onClick={openEvent} data-testid="pending-event"><span className="pending-mark"><Icon name="spark"/></span><div><small>时光暂驻 · {pendingEvent.kind === 'turning' ? '此生走向，由你决定' : '一段机缘正在等你'}</small><strong>{pendingEvent.title}</strong></div><span>作出抉择 <Icon name="arrow"/></span></button>}
-    <div className="overview-strip"><div><Icon name="coins"/><span>灵石<strong>{numberText(g.stones)}</strong></span><button className="mini-link" onClick={() => navigate('inventory')}>去坊市 <Icon name="chevron" size={12}/></button></div><div><Icon name="clock"/><span>寿元上限<strong>{g.lifespan}<small> 年</small></strong></span></div><div><Icon name="spark"/><span>今年行动<strong>{g.actionsLeft}<small> / 3</small></strong></span><small className="strip-note">推进一年恢复</small></div><div><Icon name="compass"/><span>天地时运<strong className="phase-label">{phase.name}</strong></span></div></div>
-    <StoryPanel game={g} navigate={navigate}/>
-    <div className="journey-grid"><div className="journey-main">
-      <section className="panel"><SectionTitle title="把光阴，放在何处" eyebrow="修行重心" description={g.age < 16 ? '十六岁前自动积累学识与根基；成年后生效，可随时更换重心。' : '一年只专注一件事。不同取舍，走向不同的自己。'}/><div className="focus-grid">{FOCUSES.map(focus => <button key={focus.id} data-testid={`focus-${focus.id}`} className={`focus-card ${g.focus === focus.id ? 'active' : ''}`} disabled={!g.alive || g.age < 6} onClick={() => act({ type: 'focus', focus: focus.id })} aria-pressed={g.focus === focus.id} title={focus.description}><Icon name={focus.icon} size={24}/><strong>{focus.name}</strong><small>{focus.subtitle}</small>{g.focus === focus.id && <span className="focus-check"><Icon name="check" size={13}/></span>}</button>)}</div><div className="focus-detail"><Icon name="leaf" size={16}/>{FOCUSES.find(f => f.id === g.focus)!.description}</div></section>
-      <section className="panel chronicle-preview"><SectionTitle title="此生片语" eyebrow="最近的经历" aside={<button className="text-button" onClick={() => navigate('chronicle')}>完整年谱 <Icon name="arrow" size={16}/></button>}/><div>{g.logs.slice(-5).reverse().map(entry => <LogRow key={entry.id} entry={entry} onStar={() => act({ type: 'star', id: entry.id })}/>)}</div></section>
-    </div><aside className="journey-aside">
-      <section className="panel cultivation-panel"><div className="panel-kicker"><span>道行 · {REALMS[g.realm].name}</span><Icon name="spark" size={17}/></div><div className="cultivation-ring" style={{ background: `conic-gradient(var(--jade) ${progress}%, var(--line) 0)` }}><div><span>{realm.short}</span><strong>{Math.round(progress)}<small>%</small></strong><small>{g.progress.toFixed(1)} / {realm.need} 修为</small></div></div><div className="cultivation-details"><span>闭关基准收益<strong>+{trainingRate(g)} / 年</strong></span><span>当前突破概率<strong>{Math.round(breakthroughChance(g) * 100)}%</strong></span><span>下境所需灵石<strong>{realm.cost}</strong></span></div><button className="button primary full" onClick={openBreakthrough} disabled={!g.alive || g.realm >= 6 || g.age < 16 || progress < 100} data-testid="breakthrough-open">{g.age < 16 ? '少年养气 · 十六岁可冲关' : progress < 100 ? '静待修为圆满' : g.age < g.cooldownUntil ? `调息至 ${g.cooldownUntil} 岁` : g.realm === 5 ? '叩问天门' : `尝试突破 · ${REALMS[Math.min(6, g.realm + 1)].name}`}<Icon name="arrow" size={17}/></button><small className="quiet">失败会损耗修为、体魄与灵石，不会回退境界。</small><TrainingInsight game={g}/></section>
-      <section className="panel"><div className="panel-kicker"><span>身心与根基</span><small>0—100</small></div><div className="stats-stack"><StatBar name="体魄" value={g.stats.health} tone={g.stats.health < 35 ? 'red' : 'jade'}/><StatBar name="道心" value={g.stats.mind} tone="gold"/><StatBar name="根基" value={g.stats.foundation}/><StatBar name="悟性" value={g.stats.insight} tone="blue"/></div><div className="birth-facts"><span>灵根<strong>{g.root}</strong></span><span>先天资质<strong>{g.aptitude}</strong></span><span>天赋<strong>{g.talent}</strong></span></div></section>
-      <button className="world-whisper" onClick={() => navigate('world')}><span className="eyebrow">山外风闻</span><h4>{phase.name}</h4><p>{phase.description}</p><span>看看远方 <Icon name="arrow" size={15}/></span></button>
+  const focus = FOCUSES.find(item => item.id === g.focus)!, event = getEvent(g), story = storyView(g);
+  return <div className="page-enter cultivation-home" data-testid="cultivation-home">
+    {!g.alive && <div className="ending-banner"><div><span className="eyebrow">此生已结卷</span><h3>{g.ending}</h3><p>{g.endingText}</p></div><button className="button" onClick={() => navigate('archives')}>翻阅传记 <Icon name="book"/></button><button className="button primary" onClick={newLife}>再入轮回 <Icon name="rebirth"/></button></div>}
+    {event && <button className="pending-banner" onClick={openEvent} data-testid="pending-event"><span className="pending-mark"><Icon name="spark"/></span><div><small>时光暂驻 · {event.kind === 'turning' ? '此生走向，由你决定' : '一段机缘正在等你'}</small><strong>{event.title}</strong></div><Icon name="arrow"/></button>}
+    <div className="cultivation-home-grid"><div className="cultivation-primary">
+      <section className="panel current-cultivation" data-testid="current-cultivation">
+        <div className="compact-panel-title"><div><span className="eyebrow">{currentRegion(g).name} · 当前修行</span><h1>{realmName(g)}</h1></div><span className="cultivation-percent">{Math.round(progress)}<small>%</small></span></div>
+        <progress className="cultivation-progress" max={realm.need} value={Math.min(g.progress, realm.need)} aria-label="当前修为"/>
+        <div className="cultivation-progress-caption"><span>{g.progress.toFixed(1)} / {realm.need} 修为</span><span>修炼基准 +{trainingRate(g)} / 年</span></div>
+        <button className="current-focus" onClick={() => { props.pauseTime(); setChoosingFocus(true); }} disabled={!g.alive || g.age < 6 || Boolean(g.expeditions?.active)} data-testid="focus-picker"><Icon name={focus.icon} size={22}/><span><small>光阴交给</small><strong>{focus.name}</strong></span><span className="focus-change">更换 <Icon name="chevron" size={16}/></span></button>
+        <div className="next-realm"><span>下一境 · {REALMS[Math.min(6, g.realm + 1)].name}</span><span>需 {realm.cost} 灵石 · 当前胜算 {Math.round(breakthroughChance(g) * 100)}%</span></div>
+        <button className="button primary full" onClick={openBreakthrough} disabled={!g.alive || g.realm >= 6 || g.age < 16 || progress < 100} data-testid="breakthrough-open">{g.age < 16 ? '少年养气 · 十六岁可冲关' : progress < 100 ? '静待修为圆满' : g.age < g.cooldownUntil ? `调息至 ${g.cooldownUntil} 岁` : `尝试突破 · ${REALMS[Math.min(6, g.realm + 1)].name}`}<Icon name="arrow" size={18}/></button>
+        <TrainingInsight game={g}/>
+      </section>
+      {!event && <OpportunityPreview {...props}/>}
+      <PreparationPanel game={g} act={act} pauseTime={props.pauseTime}/>
+    </div><aside className="cultivation-secondary">
+      {g.stats.health < 35 && g.alive && <Notice kind="danger">体魄偏低。可以改为静养，或在行囊服用回春丹。</Notice>}
+      <button className="life-summary-link panel" onClick={() => navigate('life')} data-testid="life-summary-link"><span className="eyebrow">此生所系</span><h2>{story.title}</h2><p>{story.description}</p><span>看看此生留下的变化 <Icon name="arrow" size={17}/></span></button>
+      <div className="cultivation-quick-links"><button onClick={() => navigate('inventory')}><Icon name="bag" size={20}/><span>行囊与坊市</span><Icon name="chevron" size={16}/></button><button onClick={() => navigate('people')}><Icon name="people" size={20}/><span>故人与同伴</span><Icon name="chevron" size={16}/></button></div>
     </aside></div>
-    <section className="panel peers-preview"><SectionTitle title="与你同赴此世的人" description="他们也在修行、选择，以及经历自己的离别。" aside={<button className="text-button" onClick={() => navigate('people')}>拜访同道 <Icon name="arrow" size={16}/></button>}/><div className="peer-strip">{g.npcs.map((npc, i) => <button key={npc.id} onClick={() => navigate('people')} className="peer-mini"><Portrait name={npc.name} index={i} departed={!npc.alive}/><div><strong>{npc.name}</strong><span>{npc.alive ? REALMS[npc.realm].name : npc.realm === 6 ? '已飞升' : '已故'} · {npc.age}岁</span><small>{npc.role === 'companion' ? '此生道侣' : npc.title}</small></div></button>)}</div></section>
-    {g.stats.health < 35 && g.alive && <Notice kind="danger">你的体魄已经偏低。选择「静养身心」后推进一年，或在行囊服用回春丹。体魄归零会结束此生。</Notice>}
+    {choosingFocus && <Modal title="把光阴，放在何处" subtitle="选定后持续执行，随时可以改变" onClose={() => setChoosingFocus(false)}><div className="focus-picker-grid">{FOCUSES.map(item => <button key={item.id} data-testid={`focus-${item.id}`} className={`focus-picker-option ${g.focus === item.id ? 'active' : ''}`} disabled={!g.alive || g.age < 6 || Boolean(g.expeditions?.active)} onClick={() => { act({ type: 'focus', focus: item.id }); setChoosingFocus(false); }} aria-pressed={g.focus === item.id}><Icon name={item.icon} size={24}/><span><strong>{item.name}</strong><small>{item.description}</small></span>{g.focus === item.id && <Icon name="check" size={18}/>}</button>)}</div>{g.age < 16 && <p className="quiet">十六岁前以学识与根基积累为主。</p>}</Modal>}
   </div>;
 }

@@ -32,7 +32,6 @@ export default function StoryPanel({ game, navigate }: { game: Game; navigate: (
           <span><small>{person.alive ? '与你的命途相连' : personNpc?.realm === 6 ? '天门另一侧的故人' : '留在此生的故人'}</small><strong>{person.name}</strong></span>
           <span className="story-person-link">{person.alive ? '见故人' : '忆故人'} <Icon name="arrow" size={14}/></span>
         </button>}
-        <p className="story-next" data-testid="story-next"><Icon name="leaf" size={16}/><span>{story.next}</span></p>
       </div>
       {chapters.length > 0 && <div className="story-history">
         <h3>走过的路，仍有回响</h3>

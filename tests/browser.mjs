@@ -5,6 +5,7 @@ import { chromium } from 'playwright';
 import { act, autoChoice, createGame, getEvent, requiresPlayerChoice, travelPrice } from '../src/game/engine.ts';
 import { REALMS } from '../src/game/data.ts';
 import { SAVE_KEY, newProfile, settleProfile, parseProfile } from '../src/game/storage.ts';
+import { preparationTarget } from '../src/game/progression.ts';
 
 const baseURL = process.env.APP_URL || 'http://localhost:5188';
 const output = path.resolve('.artifacts/browser');
@@ -13,8 +14,8 @@ assert.equal((await fetch(baseURL)).status, 200, 'Start the local app before run
 const browser = await chromium.launch({ headless: true, channel: 'chrome' });
 const results = [];
 const errors = [];
-const config = { name: '林听澜', gender: '女修', origin: 'merchant', era: 'peace', route: 'balanced', mode: 'seeker', fastStart: true, seed: 'browser-life' };
-const pages = ['journey', 'world', 'sect', 'home', 'inventory', 'people', 'chronicle', 'archives'];
+const config = { name: '林听澜', gender: '女修', origin: 'merchant', era: 'peace', route: 'balanced', region: 'qinglan', mode: 'seeker', fastStart: true, seed: 'browser-life' };
+const pages = ['journey', 'opportunities', 'world', 'sect', 'home', 'inventory', 'life', 'people', 'chronicle', 'archives'];
 const secondsPerYear = (minutes, speed) => ({ 30: 2.25, 60: 4.5 })[minutes] / speed;
 const watch = p => {
   p.on('pageerror', e => errors.push(e.message));
@@ -32,7 +33,14 @@ async function waitState(p, predicate, description) {
   }
   assert.fail(description || 'The visible action did not update the stored game.');
 }
-async function navigate(p, id) { await p.getByTestId(`nav-${id}`).click(); }
+async function navigate(p, id) {
+  const desktop = p.getByTestId(`nav-${id}`);
+  if (await desktop.isVisible()) { await desktop.click(); return; }
+  const management = ['inventory', 'home', 'sect', 'world'].includes(id);
+  const personal = ['life', 'people', 'chronicle', 'archives'].includes(id);
+  await p.getByTestId(`mobile-nav-${management ? 'management' : personal ? 'life' : id}`).click();
+  if (management || personal) await p.getByTestId(`subnav-${id}`).click();
+}
 async function waitClockYears(p, years) {
   const { durationMinutes, speed } = (await state(p)).settings;
   await p.waitForTimeout(Math.ceil(secondsPerYear(durationMinutes, speed) * 1000 * years) + 160);
@@ -63,9 +71,12 @@ async function assertGlobalStatus(p, label) {
   const game = (await state(p)).game;
   const ribbon = p.getByTestId('global-status');
   assert.ok(await ribbon.isVisible(), `${label}: missing status ribbon`);
+  const expand = p.getByTestId('status-expand');
+  const needsExpansion = await expand.isVisible() && await expand.getAttribute('aria-expanded') !== 'true';
+  if (needsExpansion) await expand.click();
   assert.equal((await p.getByTestId('status-stones').innerText()).trim(), Math.round(game.stones).toLocaleString('zh-CN'));
   assert.match(await p.getByTestId('status-actions').innerText(), new RegExp(`^${game.actionsLeft}\\s*\\/\\s*3$`));
-  assert.ok((await ribbon.locator('.status-calendar').innerText()).includes(`${2300 + game.age}年`));
+  assert.ok((await ribbon.locator('.status-calendar').textContent()).includes(`${2300 + game.age}年`));
   for (const stat of ['health', 'mind', 'foundation', 'insight', 'reputation', 'alchemy', 'combat']) {
     assert.equal((await p.getByTestId(`status-stat-${stat}`).locator('strong').innerText()).trim(), String(Math.round(game.stats[stat])));
   }
@@ -76,7 +87,27 @@ async function assertGlobalStatus(p, label) {
       return box.left >= -1 && box.right <= innerWidth + 1;
     }) };
   });
-  assert.ok(bounds.top >= -1 && bounds.bottom <= 320 && bounds.within, `${label}: ribbon is not fully visible: ${JSON.stringify(bounds)}`);
+  const dock = await p.locator('.time-dock').boundingBox();
+  const viewportHeight = p.viewportSize().height;
+  assert.ok(bounds.top >= -1 && bounds.bottom <= Math.min(viewportHeight, dock.y) + 1 && bounds.within, `${label}: expanded attributes must stay inside the usable viewport: ${JSON.stringify(bounds)}`);
+  if (needsExpansion) {
+    await expand.click();
+    const compact = await ribbon.boundingBox();
+    assert.ok(compact.height <= 160 && compact.y >= -1 && compact.y + compact.height <= dock.y + 1, `${label}: the collapsed summary should leave room for the current page: ${JSON.stringify(compact)}`);
+    assert.match(await expand.innerText(), /体魄.*道心/);
+    for (const id of ['status-stones', 'status-actions']) assert.ok(await p.getByTestId(id).isVisible(), `${label}: ${id} should remain visible after collapsing attributes.`);
+    assert.ok(await ribbon.locator('.status-name strong').isVisible());
+  }
+}
+async function assertCoreVisible(p, label) {
+  const boundary = await p.locator('.time-dock').boundingBox();
+  for (const id of ['current-cultivation', 'focus-picker', 'breakthrough-open', 'opportunity-preview', 'preparation-methods']) {
+    const box = await p.getByTestId(id).boundingBox();
+    assert.ok(box && box.y >= 0 && box.x >= -1 && box.y + box.height <= boundary.y + 1, `${label}: ${id} is not entirely usable in the first screen: ${JSON.stringify(box)}`);
+  }
+  assert.equal(await p.getByTestId('story-panel').count(), 0, 'The cultivation homepage must not bury its core controls under the full life story.');
+  const focusSize = await p.getByTestId('focus-picker').locator('strong').evaluate(node => parseFloat(getComputedStyle(node).fontSize));
+  assert.ok(focusSize >= 14, `${label}: the main action text must not be shrunk to fit.`);
 }
 async function capture(p, name, fullPage = false) { await p.screenshot({ path: path.join(output, `${name}.png`), fullPage, animations: 'disabled' }); }
 function fixture() {
@@ -109,6 +140,50 @@ function storyConsequenceFixture() {
   }
   assert.fail('The story fixture must reach its real automatic consequence.');
 }
+async function completeSpringThroughUI(p, label) {
+  const scenario = fixture(); scenario.game.actionsLeft = 1;
+  await install(p, scenario); await navigate(p, 'opportunities');
+  const offer = p.locator('.expedition-offer').filter({ has: p.getByTestId('expedition-start-spring') });
+  assert.match(await offer.innerText(), /18.*灵石/);
+  assert.doesNotMatch(await offer.innerText(), /资质.*\+4|道心.*\+3/);
+  await p.getByTestId('expedition-start-spring').click();
+  await waitState(p, s => s.game.expeditions?.active?.stage === 0);
+  assert.equal((await state(p)).game.actionsLeft, 0);
+  assert.equal((await state(p)).game.stones, scenario.game.stones - 18);
+  assert.ok(await p.getByTestId('expedition-choice-map').isEnabled());
+  const font = await p.getByTestId('expedition-scene').evaluate(node => parseFloat(getComputedStyle(node).fontSize));
+  assert.ok(font >= 16, `${label}: story prose must remain readable.`);
+  await p.getByTestId('expedition-choice-map').click();
+  await waitState(p, s => s.game.expeditions?.active?.stage === 1);
+  assert.match(await p.getByTestId('expedition-scene').innerText(), /排水道/);
+  await p.getByTestId('open-save').click(); await p.getByTestId('save-slot-0').click();
+  await waitState(p, s => s.slots[0]?.game.expeditions?.active?.stage === 1);
+  await close(p);
+  const saved = (await state(p)).game;
+  await p.reload(); await p.getByTestId('expedition-active').waitFor();
+  assert.deepEqual((await state(p)).game, saved);
+  await navigate(p, 'journey');
+  assert.ok(await p.getByTestId('focus-picker').isDisabled());
+  assert.ok(await p.getByTestId('auto-toggle').isDisabled());
+  await waitClockYears(p, 1.2); assert.deepEqual((await state(p)).game, saved);
+  await p.getByTestId('expedition-resume').click();
+  await p.getByTestId('expedition-choice-channel').click();
+  await waitState(p, s => s.game.expeditions?.active?.stage === 2);
+  assert.match(await p.getByTestId('expedition-choice-vein').innerText(), /40%.*30.*体魄/);
+  assert.doesNotMatch(await p.getByTestId('expedition-active').innerText(), /资质.*\+4|修炼.*8%|道心.*\+3/);
+  await p.getByTestId('expedition-choice-clear').click();
+  const result = (await waitState(p, s => s.game.expeditions?.completed?.some(r => r.id === 'spring'))).game;
+  assert.equal(result.expeditions.active, undefined); assert.equal(result.actionsLeft, 0);
+  assert.equal(result.age, saved.age); assert.equal(result.aptitude, Math.min(100, saved.aptitude + 4));
+  await p.getByTestId('attainment-reveal').waitFor(); await close(p);
+  await p.getByTestId('expedition-result').waitFor();
+  assert.match(await p.getByTestId('expedition-result').innerText(), /清泉洗髓/);
+  assert.match(await p.getByTestId('expedition-result').innerText(), /资质永久.*4/);
+  assert.equal(await p.getByTestId('expedition-start-spring').count(), 0);
+  const bounds = await p.getByTestId('expedition-result').boundingBox(), dock = await p.locator('.time-dock').boundingBox();
+  assert.ok(bounds.y >= 0 && bounds.y < dock.y, `${label}: the completed result should be shown before other opportunities.`);
+  await noOverflow(p, `${label} complete expedition`);
+}
 async function install(p, profile = fixture()) {
   // Use the actual import flow: direct writes before reload are correctly overwritten by beforeunload autosave.
   if (await p.getByRole('dialog').count()) await close(p);
@@ -116,7 +191,7 @@ async function install(p, profile = fixture()) {
   await p.getByTestId('import-save').setInputFiles({ name: 'scenario.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(profile)) });
   await p.getByTestId('confirm-action').click();
   await waitState(p, s => JSON.stringify(s.game) === JSON.stringify(profile.game));
-  await p.getByTestId('nav-journey').waitFor();
+  await p.getByTestId('global-status').waitFor();
 }
 
 try {
@@ -132,6 +207,7 @@ try {
     await page.getByTestId('start-life').click();
     await page.getByTestId('birth-name').fill(config.name);
     await page.getByTestId('birth-origin').selectOption(config.origin);
+    await page.getByTestId('birth-region').selectOption(config.region);
     await page.getByTestId('birth-duration').selectOption('60');
     await page.locator('.seed-details summary').click();
     await page.getByTestId('birth-seed').fill(config.seed);
@@ -170,7 +246,7 @@ try {
     await page.getByTestId('speed-select').selectOption('1');
     await choosePending(page);
   });
-  await check('All eight screens render and have usable desktop layouts', async () => {
+  await check('All ten screens render and have usable desktop layouts', async () => {
     for (const id of pages) {
       await navigate(page, id); await noOverflow(page, `desktop ${id}`); await assertGlobalStatus(page, `desktop ${id}`);
       assert.ok(await page.locator('main').innerText());
@@ -178,7 +254,7 @@ try {
     }
   });
   await check('Global status remains pinned while scrolling a long page', async () => {
-    await navigate(page, 'journey');
+    await navigate(page, 'world');
     await page.evaluate(() => window.scrollTo({ top: 850, behavior: 'instant' }));
     const position = await page.getByTestId('global-status').evaluate(el => ({
       top: el.getBoundingClientRect().top, scroll: scrollY
@@ -191,7 +267,7 @@ try {
     await choosePending(page); await navigate(page, 'journey');
     await page.getByTestId('speed-select').selectOption('1');
     await choosePending(page);
-    await page.getByTestId('focus-study').click();
+    await page.getByTestId('focus-picker').click(); await page.getByTestId('focus-study').click();
     const before = (await state(page)).game;
     await waitForNextYear(page);
     const after = (await waitState(page, s => s.game.age === before.age + 1)).game;
@@ -228,6 +304,15 @@ try {
     await page.getByTestId('open-save').click(); const before = (await state(page)).game;
     await page.getByTestId('import-save').setInputFiles({ name: 'broken.json', mimeType: 'application/json', buffer: Buffer.from('{bad') });
     await page.locator('.import-message').waitFor(); assert.deepEqual((await state(page)).game, before);
+    for (const fields of [
+      { preparation: { realm: before.realm, selected: 'missing', progress: { temper: 0, meditate: 0, medicine: 0 } } },
+      { expeditions: { completed: [], active: { id: 'spring', stage: 3, marks: [], startedAge: before.age } } },
+    ]) {
+      const invalidProgression = JSON.parse(exported); Object.assign(invalidProgression.game, fields);
+      await page.getByTestId('import-save').setInputFiles({ name: 'invalid-progress.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(invalidProgression)) });
+      await page.locator('.import-message').waitFor(); assert.deepEqual((await state(page)).game, before);
+      assert.equal(await page.getByTestId('confirm-action').count(), 0);
+    }
     const invalidEvent = JSON.parse(exported); invalidEvent.game.pending = 'story-not-a-real-event';
     await page.getByTestId('import-save').setInputFiles({ name: 'invalid-story.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(invalidEvent)) });
     await page.locator('.import-message').waitFor(); assert.deepEqual((await state(page)).game, before);
@@ -286,6 +371,58 @@ try {
     await page.getByTestId('sect-mission').click(); await waitState(page, s => s.game.contribution === 22);
     await capture(page, '05-sect-desktop');
   });
+  await check('Local sect teaching grants a real unique item, shows the learned ability and cannot be purchased again', async () => {
+    await install(page); await navigate(page, 'sect');
+    assert.ok(await page.getByTestId('join-herb').isDisabled());
+    const student = fixture(); student.game.region = 'river'; student.game.visited.push('river');
+    student.game.sect = 'herb'; student.game.contribution = 80;
+    await install(page, student); await navigate(page, 'sect');
+    await page.getByTestId('learn-specialty').click();
+    await waitState(page, s => s.game.inventory['sect-satchel'] === 1 && s.game.contribution === 0);
+    await page.getByTestId('attainment-reveal').waitFor(); assert.match(await page.getByTestId('attainment-reveal').innerText(), /百草药理/); await close(page);
+    assert.ok(await page.getByTestId('learn-specialty').isDisabled());
+    await navigate(page, 'inventory'); await page.getByTestId('tab-market').click();
+    assert.equal(await page.getByTestId('buy-sect-satchel').count(), 0);
+    await page.getByTestId('tab-bag').click(); await page.getByTestId('use-sect-satchel').click();
+    await waitState(page, s => s.game.equipped === 'sect-satchel');
+    await navigate(page, 'people');
+    for (let i = 0; i < 4; i++) assert.ok((await page.getByTestId(`companion-trait-peer-${i}`).innerText()).length > 15);
+  });
+  await check('Preparation is selected once, follows the chosen annual focus and keeps progress when paused or switched', async () => {
+    await install(page);
+    await page.getByTestId('preparation-methods').click();
+    await page.getByTestId('prepare-meditate').click();
+    await waitState(page, s => s.game.preparation?.selected === 'meditate');
+    await page.getByTestId('preparation-focus').click();
+    await waitState(page, s => s.game.focus === 'study');
+    await waitForNextYear(page);
+    await waitState(page, s => s.game.preparation?.progress.meditate > 0);
+    await choosePending(page);
+    if ((await page.getByTestId('play-toggle').innerText()).includes('暂停')) await page.getByTestId('play-toggle').click();
+    const progress = (await state(page)).game.preparation.progress.meditate;
+    await page.getByTestId('preparation-methods').click();
+    await page.getByTestId('prepare-temper').click();
+    await waitState(page, s => s.game.preparation?.selected === 'temper');
+    assert.equal((await state(page)).game.preparation.progress.meditate, progress);
+    await page.getByTestId('preparation-methods').click();
+    await page.getByTestId('prepare-cancel').click(); await waitState(page, s => s.game.preparation?.selected === null);
+    assert.equal((await state(page)).game.preparation.progress.meditate, progress);
+  });
+  await check('Successful prepared breakthrough presents and permanently retains the actual earned attainment', async () => {
+    const ready = fixture();
+    ready.game.preparation = { realm: ready.game.realm, selected: 'meditate', progress: { temper: 0, meditate: preparationTarget(ready.game.realm, 'meditate'), medicine: 0 } };
+    await install(page, ready); await page.getByTestId('breakthrough-open').click();
+    assert.match(await page.getByTestId('breakthrough-preparation').innerText(), /12\.0/);
+    await page.getByTestId('confirm-breakthrough').click();
+    const advanced = (await waitState(page, s => s.game.flags.includes('attainment-2-meditate'))).game;
+    assert.equal(advanced.realm, 3); assert.equal(advanced.preparation, undefined);
+    await page.getByTestId('attainment-reveal').waitFor(); assert.match(await page.getByTestId('attainment-reveal').innerText(), /丹心自照/); await close(page);
+    await navigate(page, 'life'); assert.match(await page.getByTestId('attainments').innerText(), /丹心自照/);
+  });
+  await check('A full expedition starts, freezes the world, reloads mid-stage and presents its earned result', async () => {
+    await completeSpringThroughUI(page, 'desktop');
+    await capture(page, '05-expedition-result-desktop');
+  });
   await check('Companion interaction is bounded per year and biography data can be exported', async () => {
     await install(page); await navigate(page, 'people'); const before = (await state(page)).game.npcs[0].relation;
     await page.getByTestId('talk-peer-0').click(); await waitState(page, s => s.game.npcs[0].relation === before + 7);
@@ -301,7 +438,7 @@ try {
     await page.getByTestId('event-choice-1').click();
     const after = await waitState(page, s => s.game.flags.includes('fate-lone') && s.game.pending === null);
     assert.ok(after.game.stats.mind < chosen.game.stats.mind);
-    await navigate(page, 'journey');
+    await navigate(page, 'life');
     await page.getByTestId('fate-arc').locator('summary').click();
     assert.match(await page.getByTestId('fate-arc').innerText(), /孤峰问道/);
     assert.match(await page.getByTestId('fate-arc').innerText(), /修炼基准.*1.16/);
@@ -326,11 +463,12 @@ try {
     await waitState(page, s => s.game.flags.includes('story-active-guardian'));
     await waitState(page, s => s.game.age > opening.game.age, 'The same running plan should resume after the player decides.');
     if ((await page.getByTestId('play-toggle').innerText()).includes('暂停')) await page.getByTestId('play-toggle').click();
+    await navigate(page, 'life');
     assert.ok(await page.getByTestId('story-panel').isVisible());
     const person = await page.getByTestId('story-person').innerText();
     assert.ok((await state(page)).game.npcs.some(n => person.includes(n.name)), 'The panel must identify an actual companion.');
     assert.ok((await page.getByTestId('story-chapters').innerText()).includes(event.title));
-    assert.ok((await page.getByTestId('story-next').innerText()).length > 10);
+    assert.doesNotMatch(await page.getByTestId('story-panel').innerText(), /再过\s*\d+\s*年|未来\s*\d+\s*年|将(?:会)?获得|下一(?:幕|阶段).*?(?:奖励|触发)/, 'The life panel should show current commitments and earned consequences, not future story timing or rewards.');
     await page.getByTestId('story-person').click();
     assert.equal(await page.getByTestId('nav-people').getAttribute('aria-current'), 'page');
     await navigate(page, 'journey');
@@ -340,6 +478,7 @@ try {
   await check('A later story panel displays the original decision, concrete consequence and continuing benefits', async () => {
     const consequence = storyConsequenceFixture();
     await install(page, consequence);
+    await navigate(page, 'life');
     const panel = await page.getByTestId('story-panel').innerText();
     assert.ok(panel.includes(getEvent(consequence.game, 'story-guardian-echo').title));
     assert.ok((await page.getByTestId('story-chapters').locator('li').count()) >= 3);
@@ -434,13 +573,28 @@ try {
       await noOverflow(p, 'mobile landing');
       if (width === 390) await capture(p, '08-mobile-landing', true);
       await p.getByTestId('start-life').click(); await noOverflow(p, 'mobile birth');
-      await p.getByTestId('birth-name').fill('沈见山'); await p.getByTestId('create-life').click();
+      await p.getByTestId('birth-name').fill('沈见山'); await p.getByTestId('birth-region').selectOption('qinglan'); await p.getByTestId('create-life').click();
       await p.getByTestId('event-choice-0').waitFor(); await choosePending(p);
     });
-    await check(`Mobile ${width}px all eight pages, dock and settings have no overflow`, async () => {
+    await check(`Mobile ${width}px cultivation controls fit the first screen with comfortable touch targets`, async () => {
+      await assertCoreVisible(p, `mobile ${width} fresh life`);
+      for (const id of ['focus-picker', 'breakthrough-open', 'opportunity-preview', 'preparation-methods', 'mobile-nav-journey', 'mobile-nav-opportunities', 'mobile-nav-management', 'mobile-nav-life']) {
+        const box = await p.getByTestId(id).boundingBox();
+        assert.ok(box.height >= 44 && box.width >= 44, `mobile ${width}: ${id} is too small for a primary touch target`);
+      }
+      await p.getByTestId('focus-picker').click(); await p.getByTestId('focus-study').click();
+      await waitState(p, s => s.game.focus === 'study');
+      await p.getByTestId('preparation-methods').click();
+      await p.getByTestId('prepare-meditate').click();
+      await waitState(p, s => s.game.preparation?.selected === 'meditate');
+      assert.ok((await p.getByTestId('preparation-current').innerText()).length > 10);
+      await noOverflow(p, `mobile ${width} preparation`);
+      await navigate(p, 'journey');
+    });
+    await check(`Mobile ${width}px all four main tabs and ten pages remain reachable without overflow`, async () => {
       for (const id of pages) { await navigate(p, id); await noOverflow(p, `mobile ${width} ${id}`); await assertGlobalStatus(p, `mobile ${width} ${id}`); }
       await navigate(p, 'journey');
-      const dock = await p.locator('.time-dock').boundingBox(); const nav = await p.locator('.sidebar').boundingBox();
+      const dock = await p.locator('.time-dock').boundingBox(); const nav = await p.locator('.mobile-bottom-nav').boundingBox();
       assert.ok(dock.y + dock.height <= nav.y + 1, 'Time controls must not overlap mobile navigation.');
       if (width === 390) await capture(p, '09-mobile-journey');
       await p.getByTestId('open-settings').click(); assert.ok(await p.getByTestId('retire').isVisible());
@@ -457,14 +611,20 @@ try {
       assert.ok(await p.getByTestId('event-choice-2').isVisible(), 'All three large directions must remain reachable on a narrow screen.');
       await p.getByTestId('event-choice-0').click();
       await waitState(p, s => s.game.flags.includes('story-active-guardian'));
+      await navigate(p, 'life');
       await p.getByTestId('story-panel').scrollIntoViewIfNeeded();
       assert.ok(await p.getByTestId('story-person').isVisible());
       assert.ok((await p.getByTestId('story-chapters').innerText()).length > 0);
       await noOverflow(p, `mobile ${width} story history`);
       await install(p, storyConsequenceFixture());
+      await navigate(p, 'life');
       assert.ok((await p.getByTestId('story-effects').innerText()).length > 20);
       await noOverflow(p, `mobile ${width} story consequence`);
       if (width === 390) await capture(p, '11-mobile-story', true);
+    });
+    await check(`Mobile ${width}px a three-stage expedition saves, reloads and shows its result`, async () => {
+      await completeSpringThroughUI(p, `mobile ${width}`);
+      await capture(p, `12-mobile-expedition-result-${width}`);
     });
     await mobile.close();
   }

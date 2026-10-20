@@ -1,13 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { act, archiveLife, autoChoice, autoStep, biography, breakthroughChance, breakthroughFactors, createGame, currentEra, currentRegion, getEvent, requiresPlayerChoice, trainingFactors, trainingRate, travelPrice, worldPhase, eventEligible, homePrice, itemPrice, simulateLife } from '../src/game/engine.ts';
+import { act, archiveLife, autoChoice, autoStep, biography, breakthroughChance, breakthroughFactors, craftChance, createGame, currentEra, currentRegion, getEvent, requiresPlayerChoice, trainingFactors, trainingRate, travelPrice, worldPhase, eventEligible, homePrice, itemPrice, simulateLife } from '../src/game/engine.ts';
 import { EVENTS, EVENT_MAP } from '../src/game/events.ts';
 import { fateInfluence } from '../src/game/fate.ts';
 import { storyView } from '../src/game/story.ts';
-import { REALMS } from '../src/game/data.ts';
+import { ITEMS, REALMS, REGIONS } from '../src/game/data.ts';
+import { attainedAbilities, companionTraits, preparationChance, preparationState, preparationTarget, preparationView, sectSpecialty } from '../src/game/progression.ts';
+import { expeditionOffers, expeditionView } from '../src/game/expeditions.ts';
+import { lifeIdentity, regionPractice, regionWorld, sectHome } from '../src/game/world.ts';
 import { BACKUP_KEY, SAVE_KEY, loadProfile, newProfile, parseProfile, persistProfile, settleProfile, validGame } from '../src/game/storage.ts';
-import type { BirthConfig, Game } from '../src/game/types.ts';
-const config: BirthConfig = { name: '林听澜', gender: '随缘', origin: 'random', era: 'peace', route: 'balanced', mode: 'seeker', fastStart: false, seed: 'test-1701' };
+import type { BirthConfig, Game, PreparationMethod } from '../src/game/types.ts';
+const config: BirthConfig = { name: '林听澜', gender: '随缘', origin: 'random', era: 'peace', route: 'balanced', region: 'qinglan', mode: 'seeker', fastStart: false, seed: 'test-1701' };
 const prepared = () => {
   const g = createGame(config); g.age = 25; g.realm = 2; g.lifespan = 260; g.stones = 1000; g.actionsLeft = 3; g.pending = null;
   g.stats = { health: 90, mind: 70, foundation: 60, insight: 60, reputation: 50, combat: 60, alchemy: 70 }; return g;
@@ -207,7 +210,8 @@ test('explanation factors match the adjusted growth and breakthrough rules', () 
     for (const pill of [false, true]) {
       const oldChance = Math.min(.90, Math.max(.07, .26 + g.stats.foundation * .0025 + g.stats.insight * .00155 + g.stats.mind * .00165 + g.aptitude * .00085 - g.realm * .075 + (pill ? .13 : 0) + (g.sect === 'star' ? .06 : 0) - Math.max(0, 75 - g.stats.health) * .0028));
       assert.ok(Math.abs(breakthroughChance(g, pill) - oldChance) < 1e-12);
-      assert.equal(breakthroughFactors(g, pill).length, 11);
+      assert.equal(breakthroughFactors(g, pill).find(factor => factor.label === '本境持续准备')?.value, 0);
+      assert.equal(breakthroughFactors(g, pill).find(factor => factor.label === '此生所学本领')?.value, 0);
     }
   }
 });
@@ -511,4 +515,364 @@ test('retirement resolves a pending decision without losing the completed life',
   const profile = settleProfile(newProfile(), retired);
   assert.equal(profile.archives.length, 1);
   assert.equal(parseProfile(JSON.stringify(profile)).archives[0].ending, '归隐山林');
+});
+
+const preparationFocus = { temper: 'adventure', meditate: 'study', medicine: 'alchemy' } as const;
+function preparedForMethod(method: PreparationMethod, realm = 0) {
+  let g = prepared(); g.realm = realm; g.age = 20; g.stones = 10000; g.home.furnace = 1; g.inventory.herb = 100;
+  g = update(g, { type: 'prepare', method });
+  g = update(g, { type: 'focus', focus: preparationFocus[method] });
+  for (let step = 0; step < 60 && preparationState(g).progress[method] < preparationTarget(realm, method); step++) {
+    g = g.pending ? update(g, { type: 'choose', index: autoChoice(g, 'safe') }) : update(g, { type: 'advance' });
+  }
+  assert.equal(preparationState(g).progress[method], preparationTarget(realm, method));
+  if (g.pending) g = update(g, { type: 'choose', index: autoChoice(g, 'safe') });
+  return g;
+}
+function expeditionReady(id: string) {
+  const g = prepared();
+  g.region = ({ spring: 'qinglan', rescue: 'river', tomb: 'north', observatory: 'central' } as Record<string, string>)[id];
+  if (!g.visited.includes(g.region)) g.visited.push(g.region);
+  g.realm = id === 'observatory' ? 3 : 2; g.stones = 2000; g.progress = 100; g.inventory.herb = 20;
+  g.npcs.forEach(n => { n.alive = true; n.realm = 1; n.relation = 70; });
+  if (id === 'observatory') g.flags.push('cave-studied');
+  return g;
+}
+function expeditionThrough(g: Game, id: string, choices: string[]) {
+  g = update(g, { type: 'expedition-start', id });
+  for (const choice of choices) g = update(g, { type: 'expedition-choose', id: choice });
+  return g;
+}
+
+test('[Progression] preparation consumes real annual resources only under the matching focus', () => {
+  for (const method of ['temper', 'meditate', 'medicine'] as const) {
+    const base = prepared(); base.home.furnace = 1; base.inventory.herb = 20; base.focus = preparationFocus[method];
+    const selected = update(base, { type: 'prepare', method });
+    assert.equal(selected.actionsLeft, base.actionsLeft, 'Setting a long-term plan is not another yearly chore.');
+    const normal = update(base, { type: 'advance' });
+    const invested = update(selected, { type: 'advance' });
+    assert.equal(preparationState(invested).progress[method], 1);
+    assert.equal(normal.stones - invested.stones, { temper: 4, meditate: 3, medicine: 7 }[method]);
+    if (method === 'medicine') assert.equal(normal.inventory.herb - invested.inventory.herb, 2);
+    if (method === 'temper') assert.equal(Math.round((normal.stats.health - invested.stats.health) * 10), 20);
+    const resting = update(selected, { type: 'focus', focus: 'rest' });
+    const paused = update(resting, { type: 'advance' });
+    const restingBaseline = update({ ...base, focus: 'rest' }, { type: 'advance' });
+    assert.equal(preparationState(paused).progress[method], 0);
+    assert.equal(paused.stones, restingBaseline.stones);
+  }
+  const noFurnace = prepared();
+  assert.ok(act(noFurnace, { type: 'prepare', method: 'medicine' }).error);
+  const poor = prepared(); poor.stones = 0; poor.focus = 'study';
+  Object.keys(poor.home).forEach(id => { poor.home[id] = 3; });
+  const paused = update(update(poor, { type: 'prepare', method: 'meditate' }), { type: 'advance' });
+  assert.equal(preparationState(paused).progress.meditate, 0);
+  assert.ok(paused.stones >= 0);
+});
+
+test('[Progression] switching or cancelling keeps invested progress, while partial preparation adds only partial chance', () => {
+  let g = prepared(); g.focus = 'study';
+  g = update(g, { type: 'prepare', method: 'meditate' });
+  g = update(g, { type: 'advance' });
+  if (g.pending) g = update(g, { type: 'choose', index: 0 });
+  assert.equal(preparationState(g).progress.meditate, 1);
+  assert.ok(Math.abs(preparationChance(g) - 0.12 / preparationTarget(g.realm, 'meditate')) < 1e-12);
+  const before = preparationState(g).progress.meditate;
+  g = update(g, { type: 'prepare', method: 'temper' });
+  assert.equal(preparationState(g).progress.meditate, before);
+  assert.equal(preparationChance(g), 0);
+  g = update(g, { type: 'prepare', method: null });
+  assert.equal(preparationState(g).progress.meditate, before);
+  g = update(g, { type: 'prepare', method: 'meditate' });
+  const ordinary = structuredClone(g); delete ordinary.preparation;
+  assert.ok(breakthroughChance(g) > breakthroughChance(ordinary));
+  g.progress = REALMS[g.realm].need; g.rng = 0;
+  const success = update(g, { type: 'breakthrough' });
+  assert.ok(!success.flags.some(flag => flag.startsWith('attainment-')), 'A partial plan must not award its completed ability.');
+  assert.equal(success.preparation, undefined);
+  ordinary.progress = REALMS[ordinary.realm].need; ordinary.rng = 0;
+  assert.equal(update(ordinary, { type: 'breakthrough' }).realm, ordinary.realm + 1, 'Ordinary breakthrough remains available.');
+});
+
+test('[Progression] completed preparation survives failure and success permanently grants the selected attainment', () => {
+  for (const method of ['temper', 'meditate', 'medicine'] as const) {
+    const g = preparedForMethod(method); g.progress = REALMS[g.realm].need; g.rng = 1000;
+    g.stats.foundation = 0; g.stats.insight = 0; g.stats.mind = 0;
+    const failed = update(g, { type: 'breakthrough' });
+    assert.equal(failed.realm, g.realm);
+    assert.deepEqual(failed.preparation, g.preparation);
+    assert.ok(!failed.flags.includes(`attainment-0-${method}`));
+    const successSource = structuredClone(g); successSource.rng = 0;
+    const success = update(successSource, { type: 'breakthrough' });
+    assert.equal(success.realm, 1);
+    assert.ok(success.flags.includes(`attainment-0-${method}`));
+    assert.equal(success.preparation, undefined);
+    assert.ok(attainedAbilities(success).some(ability => ability.id === `attainment-0-${method}`));
+    if (method === 'meditate') assert.equal(success.aptitude, Math.min(100, g.aptitude + 3));
+    const later = structuredClone(success); later.progress = REALMS[1].need; later.rng = 0; later.actionsLeft = 3;
+    const advanced = update(later, { type: 'breakthrough' });
+    assert.ok(advanced.flags.includes(`attainment-0-${method}`));
+    assert.equal(advanced.flags.filter(flag => flag === `attainment-0-${method}`).length, 1);
+  }
+});
+
+test('[Progression] attained abilities change actual recovery, pills, failed crafting and failed breakthrough', () => {
+  const resting = prepared(); resting.focus = 'rest'; resting.stats.health = 25; resting.stats.mind = 25;
+  const learned = structuredClone(resting); learned.flags.push('attainment-0-temper', 'attainment-3-medicine');
+  const plainYear = update(resting, { type: 'advance' }), learnedYear = update(learned, { type: 'advance' });
+  assert.equal(learnedYear.stats.health - plainYear.stats.health, 5);
+  assert.equal(learnedYear.stats.mind - plainYear.stats.mind, 2);
+  const patient = prepared(); patient.stats.health = 10; patient.inventory.heal = 1;
+  const medic = structuredClone(patient); medic.flags.push('attainment-1-medicine', 'sect-art-herb');
+  medic.inventory['sect-satchel'] = 1; medic.equipped = 'sect-satchel';
+  assert.equal(update(medic, { type: 'use', id: 'heal' }).stats.health - update(patient, { type: 'use', id: 'heal' }).stats.health, 18);
+  const craft = prepared(); craft.home.furnace = 1; craft.stats.alchemy = 0; craft.inventory.herb = 10; craft.rng = 1700;
+  const recycle = structuredClone(craft); recycle.flags.push('attainment-2-medicine');
+  const wasted = update(craft, { type: 'craft', id: 'heal' }), recycled = update(recycle, { type: 'craft', id: 'heal' });
+  assert.equal(recycled.inventory.heal, wasted.inventory.heal);
+  assert.equal(recycled.inventory.herb, wasted.inventory.herb + 1);
+  assert.equal(recycled.stones, wasted.stones);
+  const attempt = prepared(); attempt.progress = REALMS[attempt.realm].need; attempt.rng = 1000;
+  attempt.stats.foundation = 0; attempt.stats.insight = 0; attempt.stats.mind = 0;
+  const normal = update(attempt, { type: 'breakthrough' });
+  for (const [flag, expectedRetention] of [['attainment-3-meditate', 0.78], ['exp-observatory-anchor', 0.82]] as const) {
+    const skilled = structuredClone(attempt); skilled.flags.push(flag);
+    const result = update(skilled, { type: 'breakthrough' });
+    assert.equal(result.realm, attempt.realm);
+    assert.equal(result.progress, Math.round(attempt.progress * expectedRetention * 10) / 10);
+  }
+  const protectedBody = structuredClone(attempt); protectedBody.flags.push('attainment-1-temper', 'attainment-3-temper');
+  const protectedFailure = update(protectedBody, { type: 'breakthrough' });
+  assert.equal(attempt.stats.health - protectedFailure.stats.health, Math.ceil((attempt.stats.health - normal.stats.health) * 0.85));
+  assert.equal(protectedFailure.cooldownUntil, normal.cooldownUntil - 1);
+});
+
+test('[Progression] local sect study grants one real gear item and its effects survive leaving the sect', () => {
+  for (const [sect, gear] of [['qinglan', 'sect-sword'], ['herb', 'sect-satchel'], ['star', 'sect-seal']]) {
+    let g = prepared(); g.stats.reputation = 100; g.realm = 3;
+    g.region = sectHome(sect) === 'qinglan' ? 'river' : 'qinglan';
+    assert.ok(act(g, { type: 'join', id: sect }).error, `${sect} cannot be joined from another continent.`);
+    g.region = sectHome(sect); g = update(g, { type: 'join', id: sect }); g.contribution = 200;
+    const cost = sectSpecialty(g)!.cost;
+    g = update(g, { type: 'sect', job: 'learn' });
+    assert.equal(g.contribution, 200 - cost); assert.equal(g.inventory[gear], 1);
+    assert.ok(g.flags.includes(`sect-art-${sect}`));
+    g.actionsLeft = 3;
+    assert.ok(act(g, { type: 'sect', job: 'learn' }).error);
+    assert.ok(act(g, { type: 'buy', id: gear }).error);
+    assert.equal(ITEMS.find(item => item.id === gear)?.market, false);
+    const empty = structuredClone(g); empty.flags = empty.flags.filter(flag => flag !== `sect-art-${sect}`);
+    if (sect === 'herb') assert.ok(craftChance(g) > craftChance(empty));
+    if (sect === 'star') assert.ok(breakthroughChance(g) > breakthroughChance(empty));
+    g = update(g, { type: 'use', id: gear }); assert.equal(g.equipped, gear);
+    g = update(g, { type: 'sect', job: 'leave' });
+    assert.ok(g.flags.includes(`sect-art-${sect}`)); assert.equal(g.inventory[gear], 1);
+    assert.ok(validGame(g));
+  }
+});
+
+test('[Progression] protective training and sect arts reduce real adventure injuries at the same random roll', () => {
+  const g = prepared(); g.focus = 'adventure'; g.region = 'desert'; g.stats.combat = 0;
+  g.npcs.forEach(n => { n.alive = false; });
+  let hurt: Game | undefined, roll = 0;
+  for (let rng = 0; rng < 2000; rng++) {
+    const result = update({ ...g, rng }, { type: 'advance' });
+    if (result.logs.some(log => log.title === '历练负伤')) { hurt = result; roll = rng; break; }
+  }
+  assert.ok(hurt, 'The fixture must actually encounter an adventure injury.');
+  const protectedBody = structuredClone(g); protectedBody.rng = roll; protectedBody.flags.push('attainment-2-temper', 'sect-art-qinglan');
+  const safe = update(protectedBody, { type: 'advance' });
+  assert.ok(safe.logs.some(log => log.title === '历练负伤'));
+  assert.ok(safe.stats.health > hurt.stats.health);
+});
+
+test('[Expedition] all four adventures finish three connected stages using one entry action and preserve their results', () => {
+  const routes = [
+    { id: 'spring', choices: ['map', 'channel', 'clear'], outcome: 'clear', flag: 'exp-spring-clear' },
+    { id: 'rescue', choices: ['haste', 'force', 'healer'], outcome: 'healer', flag: 'exp-rescue-healer' },
+    { id: 'tomb', choices: ['glyph', 'ward', 'ward'], outcome: 'ward', flag: 'exp-tomb-ward' },
+    { id: 'observatory', choices: ['notes', 'lens', 'chart'], outcome: 'chart', flag: 'exp-observatory-chart' },
+  ];
+  for (const route of routes) {
+    let g = expeditionReady(route.id); g.actionsLeft = 1;
+    const offer = expeditionOffers(g).find(offer => offer.id === route.id)!;
+    const age = g.age, stones = g.stones;
+    g = update(g, { type: 'expedition-start', id: route.id });
+    assert.equal(g.stones, stones - offer.cost); assert.equal(g.actionsLeft, 0);
+    for (const [stage, choice] of route.choices.entries()) {
+      assert.equal(expeditionView(g).active?.stage, stage); assert.ok(validGame(g));
+      g = update(g, { type: 'expedition-choose', id: choice });
+      assert.equal(g.actionsLeft, 0); assert.equal(g.age, age);
+    }
+    assert.equal(g.expeditions?.active, undefined);
+    assert.equal(g.expeditions?.completed[0].outcome, route.outcome);
+    assert.ok(g.flags.includes(route.flag)); assert.ok(validGame(g));
+    assert.ok(archiveLife(update(g, { type: 'retire' })).logs.some(log => log.title.includes(g.expeditions!.completed[0].title)));
+    const source = JSON.stringify(g);
+    assert.ok(act(g, { type: 'expedition-start', id: route.id }).error);
+    assert.equal(JSON.stringify(g), source, 'A completed adventure must not grant its permanent rewards again.');
+  }
+});
+
+test('[Expedition] early approaches change later paths, and all four companions have distinct usable expertise', () => {
+  const base = expeditionReady('spring');
+  assert.equal(new Set(companionTraits(base).map(trait => trait.traitId)).size, 4);
+  for (const [id, choice, companion] of [['spring', 'healer', 'peer-1'], ['spring', 'guide', 'peer-2'], ['rescue', 'ledger', 'peer-0'], ['tomb', 'guard', 'peer-3']]) {
+    let g = expeditionThrough(expeditionReady(id), id, [choice]);
+    assert.equal(g.expeditions?.active?.companionId, companion);
+    assert.ok(expeditionView(g).active?.text.includes(g.npcs.find(n => n.id === companion)!.name));
+    const dead = expeditionReady(id); dead.npcs.find(n => n.id === companion)!.alive = false;
+    g = update(dead, { type: 'expedition-start', id });
+    assert.ok(expeditionView(g).active!.choices.find(option => option.id === choice)?.disabled);
+    assert.ok(act(g, { type: 'expedition-choose', id: choice }).error);
+  }
+  const planned = expeditionThrough(expeditionReady('rescue'), 'rescue', ['ledger']);
+  const rushed = expeditionThrough(expeditionReady('rescue'), 'rescue', ['haste']);
+  assert.equal(expeditionView(planned).active!.choices.find(c => c.id === 'passage')?.disabled, undefined);
+  assert.ok(expeditionView(rushed).active!.choices.find(c => c.id === 'passage')?.disabled);
+  const kept = update(update(planned, { type: 'expedition-choose', id: 'passage' }), { type: 'expedition-choose', id: 'cache' });
+  assert.ok(kept.flags.includes('exp-rescue-cache'));
+  assert.ok(kept.flags.includes('companion-bond:peer-0') && kept.flags.includes('companion-bond:peer-1'));
+  const lens = expeditionThrough(expeditionReady('observatory'), 'observatory', ['notes', 'lens']);
+  const anchor = expeditionThrough(expeditionReady('observatory'), 'observatory', ['notes', 'anchor']);
+  assert.ok(expeditionView(lens).active!.choices.find(c => c.id === 'anchor')?.disabled);
+  assert.ok(expeditionView(anchor).active!.choices.find(c => c.id === 'chart')?.disabled);
+  assert.equal(expeditionView(anchor).active!.choices.find(c => c.id === 'eclipse')?.disabled, undefined);
+});
+
+test('[Expedition] active adventures freeze automation and unrelated actions, save mid-stage and can retire or retreat safely', () => {
+  const active = expeditionThrough(expeditionReady('spring'), 'spring', ['map']);
+  const before = JSON.stringify(active);
+  for (const action of [{ type: 'advance' }, { type: 'focus', focus: 'rest' }, { type: 'prepare', method: 'temper' }, { type: 'buy', id: 'heal' }, { type: 'travel', id: 'river' }, { type: 'breakthrough' }] as const) {
+    const blocked = act(active, action); assert.ok(blocked.error, action.type); assert.equal(blocked.game, active);
+  }
+  assert.deepEqual(autoStep(active, 'bold').game, active);
+  assert.equal(JSON.stringify(active), before);
+  const loaded = parseProfile(JSON.stringify(settleProfile(newProfile(), active))).game!;
+  assert.deepEqual(loaded, active);
+  const resumed = update(update(loaded, { type: 'expedition-choose', id: 'channel' }), { type: 'expedition-choose', id: 'clear' });
+  const direct = update(update(active, { type: 'expedition-choose', id: 'channel' }), { type: 'expedition-choose', id: 'clear' });
+  assert.deepEqual(resumed, direct);
+  const retired = update(active, { type: 'retire' });
+  assert.equal(retired.expeditions?.active, undefined); assert.ok(validGame(retired));
+  assert.equal(settleProfile(newProfile(), retired).archives.length, 1);
+  for (const stage of [0, 1, 2]) {
+    let g = update(expeditionReady('spring'), { type: 'expedition-start', id: 'spring' });
+    if (stage >= 1) g = update(g, { type: 'expedition-choose', id: 'map' });
+    if (stage >= 2) g = update(g, { type: 'expedition-choose', id: 'channel' });
+    const health = g.stats.health;
+    const escaped = update(g, { type: 'expedition-retreat' });
+    assert.equal(escaped.stats.health, health); assert.equal(escaped.expeditions?.active, undefined);
+    assert.equal(escaped.expeditions?.completed[0].outcome, 'withdrawn');
+    assert.ok(!escaped.flags.includes('exp-spring-clear'));
+    assert.ok(act(escaped, { type: 'expedition-start', id: 'spring' }).error);
+  }
+});
+
+test('[Expedition] risky endings use seeded outcomes and disclose current losses without revealing future reward numbers', () => {
+  const source = expeditionThrough(expeditionReady('spring'), 'spring', ['map', 'channel']);
+  const description = expeditionView(source).active!.choices.map(choice => choice.hint).join(' ');
+  assert.match(description, /40%|30.*体魄/);
+  assert.doesNotMatch(description, /资质.*\+|修炼.*8%|道心.*\+3/);
+  const successful = update({ ...source, rng: 0 }, { type: 'expedition-choose', id: 'vein' });
+  const failed = update({ ...source, rng: 1700 }, { type: 'expedition-choose', id: 'vein' });
+  assert.equal(successful.expeditions?.completed[0].outcome, 'vein');
+  assert.equal(failed.expeditions?.completed[0].outcome, 'scarred');
+  assert.equal(failed.stats.health, source.stats.health - 30);
+  assert.equal(failed.progress, Math.round(source.progress * 0.6 * 10) / 10);
+  assert.ok(successful.aptitude > failed.aptitude);
+  assert.deepEqual(update({ ...source, rng: 1700 }, { type: 'expedition-choose', id: 'vein' }), failed);
+  const doomed = expeditionThrough(expeditionReady('observatory'), 'observatory', ['notes', 'lens']);
+  doomed.stats.health = 40; doomed.rng = 1700;
+  const fallen = update(doomed, { type: 'expedition-choose', id: 'confluence' });
+  assert.equal(fallen.alive, false); assert.equal(fallen.expeditions?.active, undefined);
+  assert.match(fallen.expeditions!.completed[0].title, /陨落/);
+  assert.match(fallen.expeditions!.completed[0].text, /未能撑过伤势/);
+  assert.ok(validGame(fallen));
+});
+
+test('[Expedition] permanent discoveries alter later gameplay and the heterodox ending preserves its real tradeoffs', () => {
+  const source = expeditionReady('observatory');
+  const transformed = expeditionThrough(source, 'observatory', ['notes', 'anchor', 'eclipse']);
+  assert.ok(transformed.flags.includes('legacy-eclipse'));
+  assert.ok(!transformed.flags.includes('exp-observatory-chart') && !transformed.flags.includes('exp-observatory-anchor'));
+  assert.equal(transformed.aptitude, Math.min(100, source.aptitude + 5));
+  assert.match(lifeIdentity(transformed).title, /异道/);
+  const ordinary = structuredClone(transformed); ordinary.flags = ordinary.flags.filter(flag => flag !== 'legacy-eclipse');
+  for (const g of [transformed, ordinary]) { g.focus = 'adventure'; g.progress = 0; g.stats.health = 60; }
+  const changedYear = update(transformed, { type: 'advance' }), ordinaryYear = update(ordinary, { type: 'advance' });
+  assert.ok(changedYear.progress > ordinaryYear.progress);
+  assert.equal(changedYear.stones, ordinaryYear.stones - 5);
+  assert.ok(changedYear.stats.health > ordinaryYear.stats.health);
+  assert.ok(changedYear.stats.reputation < ordinaryYear.stats.reputation);
+  const learned = expeditionThrough(expeditionReady('spring'), 'spring', ['map', 'channel', 'clear']);
+  learned.focus = 'rest'; learned.stats.mind = 20;
+  const untouched = structuredClone(learned); untouched.flags = untouched.flags.filter(flag => flag !== 'exp-spring-clear');
+  assert.equal(update(learned, { type: 'advance' }).stats.mind - update(untouched, { type: 'advance' }).stats.mind, 3);
+});
+
+test('[Expedition] optional progress fields preserve old v1 saves and reject corrupt activity or preparation atomically', () => {
+  const old = settleProfile(newProfile(), prepared());
+  assert.equal(old.game!.preparation, undefined); assert.equal(old.game!.expeditions, undefined);
+  assert.deepEqual(parseProfile(JSON.stringify(old)), old);
+  const active = expeditionThrough(expeditionReady('spring'), 'spring', ['guide']);
+  const valid = settleProfile(newProfile(), active), raw = JSON.stringify(valid);
+  const mutations: ((g: Game) => void)[] = [
+    g => { g.expeditions!.active!.stage = 3; },
+    g => { g.expeditions!.active!.marks = ['unknown']; },
+    g => { g.expeditions!.active!.companionId = 'peer-0'; },
+    g => { g.expeditions!.active!.startedAge--; },
+    g => { g.npcs.find(n => n.id === 'peer-2')!.alive = false; },
+    g => { g.expeditions!.completed.push({ id: 'spring', outcome: 'invented', title: '假结果', text: '无效', age: g.age }); },
+    g => { g.preparation = { realm: g.realm + 1, selected: 'temper', progress: { temper: 0, meditate: 0, medicine: 0 } }; },
+    g => { g.preparation = { realm: g.realm, selected: 'invalid' as PreparationMethod, progress: { temper: 0, meditate: 0, medicine: 0 } }; },
+    g => { g.preparation = { realm: g.realm, selected: 'temper', progress: { temper: -1, meditate: 0, medicine: 0 } }; },
+    g => { g.preparation = { realm: g.realm, selected: 'temper', progress: { temper: preparationTarget(g.realm, 'temper') + 1, meditate: 0, medicine: 0 } }; },
+  ];
+  for (const mutate of mutations) {
+    const malformed = structuredClone(valid); mutate(malformed.game!);
+    assert.throws(() => parseProfile(JSON.stringify(malformed)));
+    assert.equal(JSON.stringify(valid), raw);
+  }
+});
+
+test('[World] five birthplaces and seeded random birth preserve their identity and local preparation advantages', () => {
+  for (const region of REGIONS) {
+    const g = createGame({ ...config, region: region.id });
+    assert.equal(g.region, region.id); assert.equal(g.visited[0], region.id);
+    assert.ok(g.logs[0].text.includes(region.name));
+    assert.ok(lifeIdentity(g).facets.includes(`生于${regionWorld(region.id).continent}`));
+    assert.ok(validGame(g));
+  }
+  const randomBirth = createGame({ ...config, region: 'random', seed: 'world-birth' });
+  assert.deepEqual(randomBirth, createGame({ ...config, region: 'random', seed: 'world-birth' }));
+  const generated = new Set(Array.from({ length: 100 }, (_, n) => createGame({ ...config, region: 'random', seed: `world-${n}` }).region));
+  assert.ok(generated.size > 1, 'Seeded random birth must not silently force every life into the same region.');
+  for (const [region, method] of [['north', 'temper'], ['river', 'medicine'], ['central', 'meditate']] as const) {
+    const g = prepared(); g.region = region; g.home.furnace = 1; g.inventory.herb = 20; g.focus = preparationFocus[method];
+    const advanced = update(update(g, { type: 'prepare', method }), { type: 'advance' });
+    assert.equal(preparationState(advanced).progress[method], 1.3);
+    assert.equal(preparationView(advanced).methods.find(m => m.id === method)?.rate, regionPractice(region, method));
+  }
+});
+
+test('[Progression] eclipse automation restores body and funds before returning to adventure', () => {
+  const learned = expeditionThrough(expeditionReady('observatory'), 'observatory', ['notes', 'anchor', 'eclipse']);
+  learned.focus = 'adventure'; learned.stats.health = 55; learned.stats.mind = 80;
+  let resting = autoStep(learned, 'safe').game;
+  assert.equal(resting.focus, 'rest');
+  assert.ok(resting.stats.health >= 60, 'The fixture must actually recover above the safe policy threshold.');
+  if (resting.pending) resting = update(resting, { type: 'choose', index: autoChoice(resting, 'safe') });
+  assert.equal(autoStep(resting, 'safe').game.focus, 'adventure', 'An inherited adventure practice must resume after recovery.');
+  const poor = structuredClone(learned);
+  poor.stats.health = 90; poor.progress = REALMS[poor.realm].need; poor.stones = 0;
+  const earning = autoStep(poor, 'safe').game;
+  assert.equal(earning.focus, 'work', 'Funding an imminent breakthrough still takes priority.');
+  assert.ok(earning.stones > poor.stones);
+  for (const focus of ['rest', 'work', 'study', 'cultivate'] as const) {
+    const ready = structuredClone(learned); ready.stats.health = 90; ready.stones = 2000; ready.focus = focus;
+    const ordinary = structuredClone(ready); ordinary.flags = ordinary.flags.filter(flag => flag !== 'legacy-eclipse');
+    assert.equal(autoStep(ready, 'safe').game.focus, 'adventure', `${focus} must yield to the learned practice once urgent needs are met.`);
+    assert.equal(autoStep(ordinary, 'safe').game.focus, 'cultivate', 'Ordinary characters retain the existing cultivation fallback.');
+  }
 });

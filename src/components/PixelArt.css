@@ -1,0 +1,48 @@
+.pixel-sprite {
+  display:inline-block;
+  flex-shrink:0;
+  vertical-align:middle;
+  background-image:url('/art/pixel-items.png');
+  background-repeat:no-repeat;
+  background-size:400% 400%;
+  image-rendering:pixelated;
+}
+.pixel-scene {
+  position:relative;
+  overflow:hidden;
+  display:block;
+  width:100%;
+  height:100%;
+  isolation:isolate;
+  background:#102838;
+}
+.pixel-scene img {
+  display:block;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  object-position:center 54%;
+  image-rendering:pixelated;
+}
+.pixel-scene-compact img { object-position:center 58%; }
+.pixel-scene-north img { filter:saturate(.6) brightness(1.14); }
+.pixel-scene-desert img { filter:sepia(.35) hue-rotate(330deg); }
+.pixel-scene-river img { filter:saturate(1.12); }
+.pixel-scene-central img { filter:brightness(1.12) saturate(.9); }
+.portrait.pixel-portrait {
+  border:2px solid var(--pixel-border-bright,#648b92);
+  border-radius:0;
+  color:var(--pixel-text,#edf5ef);
+  background:var(--pixel-panel-inset,#0a1c2a);
+  box-shadow:inset 0 0 0 2px #071723,2px 2px 0 var(--pixel-edge,#07131d);
+}
+.pixel-portrait-face {
+  width:100%;
+  height:100%;
+  background-image:url('/art/pixel-portraits.png');
+  background-size:400% 200%;
+  background-repeat:no-repeat;
+  image-rendering:pixelated;
+}
+.portrait.pixel-portrait.departed { filter:grayscale(1); opacity:.68; }
+.pixel-icon { shape-rendering:crispEdges; flex-shrink:0; }

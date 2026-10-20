@@ -100,6 +100,9 @@ async function assertGlobalStatus(p, label) {
   }
 }
 async function assertCoreVisible(p, label) {
+  // Measure final hit boxes after the page's entry translation has settled.
+  // During animation Chromium can report 43.99997 for a 44px button.
+  await p.locator('.page-enter').evaluate(node => Promise.all(node.getAnimations().map(animation => animation.finished)));
   const boundary = await p.locator('.time-dock').boundingBox();
   for (const id of ['current-cultivation', 'focus-picker', 'breakthrough-open', 'opportunity-preview', 'preparation-methods']) {
     const box = await p.getByTestId(id).boundingBox();
@@ -715,7 +718,7 @@ try {
       await assertCoreVisible(p, `mobile ${width} fresh life`);
       for (const id of ['focus-picker', 'breakthrough-open', 'opportunity-preview', 'preparation-methods', 'mobile-nav-journey', 'mobile-nav-opportunities', 'mobile-nav-management', 'mobile-nav-life']) {
         const box = await p.getByTestId(id).boundingBox();
-        assert.ok(box.height >= 44 && box.width >= 44, `mobile ${width}: ${id} is too small for a primary touch target`);
+        assert.ok(box.height >= 44 && box.width >= 44, `mobile ${width}: ${id} is too small for a primary touch target: ${JSON.stringify(box)}`);
       }
       await p.getByTestId('focus-picker').click(); await p.getByTestId('focus-study').click();
       await waitState(p, s => s.game.focus === 'study');

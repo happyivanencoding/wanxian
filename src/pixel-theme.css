@@ -1,0 +1,727 @@
+/* Pixel cultivation RPG: shared surfaces for every page and dialog.
+   Chinese remains a readable system font; local art carries the pixel style. */
+:root {
+  --pixel-bg: #102b3d;
+  --pixel-panel: #15364b;
+  --pixel-panel-raised: #1c4358;
+  --pixel-panel-inset: #0c2333;
+  --pixel-border: #45677c;
+  --pixel-border-bright: #7fa3b7;
+  --pixel-edge: #071722;
+  --pixel-jade: #8ee6ca;
+  --pixel-gold: #f1ca72;
+  --pixel-text: #edf5ef;
+  --pixel-muted: #b1c8cf;
+  --pixel-red: #ffaaa0;
+  --pixel-blue: #8bc7f3;
+  --pixel-purple: #c9b1f0;
+  --pixel-button-ink: #302512;
+  --pixel-highlight: #fbe4a3;
+  --pixel-shadow: 3px 3px 0 #06162280;
+}
+
+:root[data-theme="dark"] {
+  --pixel-bg: #071723;
+  --pixel-panel: #0d2638;
+  --pixel-panel-raised: #153449;
+  --pixel-panel-inset: #06141f;
+  --pixel-border: #3b596e;
+  --pixel-border-bright: #7898ac;
+  --pixel-edge: #030d15;
+  --pixel-jade: #8ee6ca;
+  --pixel-gold: #f1ca72;
+  --pixel-text: #edf5ef;
+  --pixel-muted: #afc3cc;
+}
+
+:root, :root[data-theme="light"], :root[data-theme="dark"] {
+  color-scheme: dark;
+  color: var(--pixel-text);
+  background: var(--pixel-bg);
+  --bg: var(--pixel-bg);
+  --paper: var(--pixel-panel);
+  --ink: var(--pixel-text);
+  --muted: var(--pixel-muted);
+  --jade: var(--pixel-jade);
+  --jade-dark: #b2f2df;
+  --jade-wash: #1d4a50;
+  --gold: var(--pixel-gold);
+  --red: var(--pixel-red);
+  --blue: var(--pixel-blue);
+  --line: var(--pixel-border);
+  --sand: #355469;
+  --wood: #b69768;
+  --shadow: var(--pixel-shadow);
+  --sans: "Microsoft YaHei UI", "PingFang SC", "Segoe UI", sans-serif;
+  --serif: "Microsoft YaHei UI", "PingFang SC", "Segoe UI", sans-serif;
+  --sidebar: 192px;
+  font-family: "Microsoft YaHei UI", "PingFang SC", "Segoe UI", sans-serif;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+body {
+  color: var(--ink);
+  background: var(--bg);
+  background-image: linear-gradient(90deg, #7fa3b706 1px, transparent 1px), linear-gradient(#7fa3b706 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+::selection { background: var(--jade); color: var(--pixel-edge); }
+* { scrollbar-color: var(--pixel-border-bright) var(--pixel-panel-inset); scrollbar-width: thin; }
+h1, h2, h3, h4 { color: var(--ink); letter-spacing: .02em; }
+p { line-height: 1.7; }
+button, input, select, textarea, summary { touch-action: manipulation; }
+button, input, select, textarea, summary, .button { scroll-margin-block: 90px 165px; }
+button:not(:disabled), a { transition-duration: 120ms; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible {
+  outline: 2px solid var(--pixel-highlight);
+  outline-offset: 3px;
+}
+button:disabled { opacity: .58; }
+input:not([type="checkbox"]):not([type="file"]), select, textarea {
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--pixel-border-bright);
+  border-radius: 2px;
+  background: var(--pixel-panel-inset);
+  color: var(--ink);
+  box-shadow: inset 2px 2px 0 var(--pixel-edge);
+  font-size: 14px;
+}
+select option { color: var(--ink); background: var(--pixel-panel-inset); }
+input[type="checkbox"] { accent-color: var(--jade); width: 20px; height: 20px; }
+summary { cursor: pointer; min-height: 44px; padding-block: 11px; font-size: 14px; color: var(--jade); line-height: 1.6; }
+
+/* One button language, including controls nested in inventory and modals. */
+.app-shell .button, .app-shell.in-game .button {
+  min-height: 44px;
+  border: 1px solid var(--pixel-border-bright);
+  border-radius: 2px;
+  padding: 10px 14px;
+  background: linear-gradient(var(--pixel-panel-raised), var(--pixel-panel));
+  box-shadow: inset 1px 1px 0 #bddbeb18, inset -1px -2px 0 var(--pixel-edge), 2px 2px 0 #06162270;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: .02em;
+  white-space: normal;
+}
+.app-shell .button:not(:disabled):hover { color: var(--jade); background: var(--pixel-panel-raised); border-color: var(--jade); }
+.app-shell .button.primary, :root[data-theme="dark"] .app-shell .button.primary {
+  color: var(--pixel-button-ink);
+  border-color: var(--pixel-highlight);
+  background: linear-gradient(180deg, #f8df94 0 14%, var(--gold) 14% 88%, #c69a48 88%);
+  box-shadow: inset 2px 0 0 #ffefb6, inset -2px 0 0 #d5a753, 2px 3px 0 var(--pixel-edge);
+  text-shadow: 0 1px 0 #fff6;
+}
+.app-shell .button.primary:not(:disabled):hover { color: var(--pixel-button-ink); background: var(--pixel-highlight); border-color: #fff1bc; }
+.app-shell .button.primary:disabled { color: #d2c6a5; border-color: #746f5e; background: #464b45; box-shadow: inset 0 -2px 0 #17242b; text-shadow: none; opacity: .75; }
+.app-shell .button.danger { border-color: color-mix(in srgb, var(--red) 60%, var(--line)); color: var(--red); background: color-mix(in srgb, var(--red) 10%, var(--paper)); }
+.app-shell .button.large { min-height: 50px; font-size: 16px; }
+.app-shell .icon-button { width: 44px; height: 44px; min-width: 44px; min-height: 44px; border-radius: 2px; color: var(--muted); }
+.app-shell .icon-button:hover { color: var(--jade); background: var(--pixel-panel-raised); }
+.app-shell .text-button, .app-shell .inline-link, .app-shell .mini-link { min-height: 44px; font-size: 14px; }
+.app-shell .text-button { padding: 9px 3px; }
+.app-shell .quiet, .app-shell .footnote { color: var(--muted); font-size: 12px; line-height: 1.75; }
+.app-shell .eyebrow { color: var(--gold); font-size: 10px; letter-spacing: .1em; }
+.app-shell .live-dot { border-radius: 0; box-shadow: 0 0 0 2px color-mix(in srgb, var(--jade) 12%, transparent); }
+.app-shell .seal { transform: none; border-radius: 0; background: color-mix(in srgb, var(--red) 7%, var(--pixel-panel-inset)); font-weight: 700; }
+
+/* Shared beveled, compact panels. Explicit selectors also cover standalone cards. */
+.app-shell .panel, .app-shell.in-game .panel,
+.app-shell .story-panel, .app-shell.in-game .story-panel,
+.app-shell .archive-card, .app-shell .director-settings {
+  border: 1px solid var(--pixel-border);
+  border-radius: 2px;
+  background: var(--pixel-panel);
+  box-shadow: inset 0 1px 0 #c5dfeb10, inset 0 -2px 0 var(--pixel-edge), var(--pixel-shadow);
+  padding: 18px;
+  min-width: 0;
+}
+.app-shell .section-title, .app-shell.in-game .section-title { align-items: center; gap: 12px; margin-bottom: 16px; }
+.app-shell .section-title > div { min-width: 0; }
+.app-shell .section-title h2, .app-shell.in-game .section-title h2 { font-size: 24px; line-height: 1.4; }
+.app-shell .panel .section-title h2 { font-size: 19px; }
+.app-shell .section-title .eyebrow { margin-bottom: 4px; }
+.app-shell .section-title p, .app-shell.in-game .section-title p { margin-top: 6px; font-size: 14px; line-height: 1.6; }
+.app-shell .panel-kicker { color: var(--muted); font-size: 12px; margin-bottom: 14px; }
+.app-shell .soft-badge, .app-shell .wallet, .app-shell .realm-badge, .app-shell .level-badge {
+  border: 1px solid var(--pixel-border);
+  border-radius: 2px;
+  background: var(--pixel-panel-inset);
+  color: var(--jade);
+  padding: 6px 9px;
+  font-size: 12px;
+}
+.app-shell .wallet { font: 600 21px/1.4 "Segoe UI", sans-serif; color: var(--gold); }
+.app-shell .wallet small { font-size: 12px; }
+.app-shell .notice, .app-shell.in-game .notice {
+  padding: 12px 14px;
+  margin: 16px 0;
+  gap: 10px;
+  border: 1px solid var(--pixel-border);
+  border-left: 3px solid var(--jade);
+  border-radius: 2px;
+  background: var(--pixel-panel-inset);
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.7;
+}
+.app-shell .notice > svg { color: var(--jade); }
+.app-shell .notice.danger { border-left-color: var(--red); background: color-mix(in srgb, var(--red) 8%, var(--pixel-panel-inset)); color: var(--red); }
+.app-shell .notice.danger > svg { color: var(--red); }
+.app-shell .empty-state { padding: 35px 16px; }
+.app-shell .empty-state > span { border: 1px solid var(--pixel-border-bright); border-radius: 2px; background: var(--pixel-panel-inset); box-shadow: 3px 3px 0 var(--pixel-edge); }
+.app-shell .empty-state h3 { font-size: 22px; }
+.app-shell .empty-state p { font-size: 14px; }
+.app-shell .pending-banner, .app-shell .ending-banner, .app-shell .opportunity-preview,
+.app-shell .life-summary-link, .app-shell .cultivation-quick-links, .app-shell .focus-card,
+.app-shell .benefit-tag, .app-shell .focus-detail {
+  border-radius: 2px;
+  border-color: var(--pixel-border);
+}
+.app-shell .pending-banner { background: var(--pixel-panel-raised); box-shadow: inset 3px 0 0 var(--gold), var(--pixel-shadow); }
+.app-shell .ending-banner { background: var(--pixel-panel); box-shadow: inset 3px 0 0 var(--gold); }
+.app-shell .bar-track { height: 6px; border-radius: 0; background: var(--pixel-panel-inset); border: 1px solid var(--pixel-border); }
+.app-shell .bar-track i { border-radius: 0; box-shadow: inset 0 1px 0 #ffffff30; }
+
+/* Desktop and phone share the same steel-blue frame and gold active marker. */
+.app-shell .sidebar { padding: 23px 14px 16px; border-right: 2px solid var(--pixel-border); background: var(--pixel-panel-inset); box-shadow: inset -3px 0 0 var(--pixel-edge); }
+.app-shell .brand-mark { color: var(--gold); background: var(--pixel-panel); border: 1px solid var(--gold); border-radius: 1px; box-shadow: inset 0 0 0 3px var(--pixel-panel), inset 0 0 0 4px #bb9b5a; }
+.app-shell .brand strong { font-size: 19px; letter-spacing: .08em; }
+.app-shell .brand small { color: var(--muted); letter-spacing: .12em; font-size: 10px; }
+.app-shell .sidebar-divider { margin: 20px 0 12px; background: var(--pixel-border); }
+.app-shell .sidebar nav { gap: 5px; }
+.app-shell .nav-item { position: relative; min-height: 44px; padding: 10px 12px; border: 1px solid transparent; border-radius: 2px; color: var(--muted); font-size: 14px; gap: 11px; }
+.app-shell .nav-item > span { letter-spacing: .05em; }
+.app-shell .nav-item > small { color: var(--muted); opacity: .7; }
+.app-shell .nav-item.active { background: var(--pixel-panel-raised); color: var(--gold); border-color: var(--pixel-border-bright); box-shadow: inset 3px 0 0 var(--gold), inset 0 -2px 0 var(--pixel-edge); }
+.app-shell .nav-item.active::before { content: none; }
+.app-shell .nav-item:not(.active):hover { color: var(--jade); background: var(--pixel-panel); border-color: var(--pixel-border); }
+.app-shell .sidebar-poem { margin: 20px 11px; font-size: 12px; line-height: 2; opacity: .8; }
+.app-shell .sidebar-bottom { gap: 2px; }
+.app-shell .sidebar-bottom button { min-height: 44px; font-size: 13px; padding: 9px 10px; border-radius: 2px; }
+.app-shell .sidebar-bottom button:hover { background: var(--pixel-panel); }
+.app-shell .sidebar-bottom > small { font-size: 9px; padding-top: 10px; }
+.app-shell .topbar { height: 58px; padding: 0 24px; background: var(--pixel-panel-inset); border-bottom: 1px solid var(--pixel-border); }
+.app-shell .breadcrumb { font-size: 13px; gap: 10px; }
+.app-shell .breadcrumb > strong { color: var(--gold); }
+.app-shell .topbar-actions { gap: 8px; }
+.app-shell .save-status { color: var(--muted); font-size: 11px; }
+.app-shell .save-status.warning { color: var(--red); }
+.app-shell .page-content { padding: 20px 24px 170px; max-width: 1420px; }
+.app-shell .global-warning { background: #492f36; color: #ffbeb3; border-block: 1px solid #8f5861; padding: 10px 24px; font-size: 14px; }
+.app-shell .global-warning button { min-height: 44px; font-size: 14px; }
+.app-shell .time-dock, .app-shell .time-dock:has(> .year-clock) { padding: 10px 24px; gap: 8px 16px; border-top: 2px solid var(--pixel-border-bright); background: var(--pixel-panel-inset); backdrop-filter: none; box-shadow: 0 -3px 0 var(--pixel-edge); }
+.app-shell .time-controls .button { min-height: 44px; }
+.app-shell .speed-select { height: 44px; min-width: 62px; padding: 8px 10px; color: var(--gold); font-size: 14px; }
+.app-shell .auto-toggle { min-height: 44px; font-size: 13px; }
+.app-shell .auto-toggle small { font-size: 11px; }
+.app-shell .switch-track { border-radius: 2px; background: var(--pixel-border); box-shadow: inset 1px 1px 0 var(--pixel-edge); }
+.app-shell .switch-track::after { border-radius: 0; background: var(--ink); box-shadow: 1px 1px 0 var(--pixel-edge); }
+.app-shell .auto-toggle input:checked + .switch-track { background: #3e9b89; }
+.app-shell .year-clock-track { height: 6px; border-radius: 0; background: var(--pixel-panel-raised); box-shadow: inset 0 1px 0 var(--pixel-edge); }
+.app-shell .year-clock-fill { border-radius: 0; background: var(--gold); box-shadow: none; }
+.app-shell .year-clock-fill::after { background: #fff0bc; width: 3px; }
+.app-shell .year-clock-caption, .app-shell .year-clock-caption small, .app-shell .year-clock-countdown { font-size: 12px; }
+
+/* Page tabs and filter chips are compact, finger-size controls. */
+.app-shell .tab-bar { gap: 6px; padding: 5px; margin: 0 0 14px; border: 1px solid var(--pixel-border); border-radius: 2px; background: var(--pixel-panel-inset); flex-wrap: wrap; }
+.app-shell .tab-bar > button { min-height: 44px; padding: 9px 14px; border: 1px solid transparent; border-radius: 1px; font-size: 14px; }
+.app-shell .tab-bar > button.active { border-color: var(--pixel-border-bright); background: var(--pixel-panel-raised); color: var(--gold); box-shadow: inset 0 -2px 0 var(--gold); }
+.app-shell .tab-note { font-size: 12px; padding: 6px; white-space: normal; }
+.app-shell .filter-chips { flex-wrap: wrap; overflow: visible; padding: 0; gap: 6px; }
+.app-shell .filter-chips > button { min-height: 44px; padding: 8px 11px; font-size: 13px; border: 1px solid var(--pixel-border); border-radius: 2px; background: var(--pixel-panel-inset); }
+.app-shell .filter-chips > button.active { background: var(--jade-wash); border-color: var(--jade); color: var(--jade); }
+.app-shell .inventory-toolbar, .app-shell .chronicle-toolbar { margin: 12px 0; gap: 12px; }
+.app-shell .search-input { font-size: 14px; }
+.app-shell .equipped-line { padding: 12px; background: var(--pixel-panel-inset); border: 1px solid var(--pixel-border); border-radius: 2px; margin: 12px 0; font-size: 14px; }
+.app-shell .equipped-line > small { font-size: 12px; }
+
+/* Inventory, crafting, facilities, people, and sect directory. */
+.app-shell .item-grid, .app-shell .recipe-grid, .app-shell .facility-grid, .app-shell .people-grid, .app-shell .three-card-grid { gap: 12px; }
+.app-shell .item-card, .app-shell .recipe-card, .app-shell .facility-card { padding: 15px; }
+.app-shell .item-top { gap: 10px; align-items: center; }
+.app-shell .item-top > div { min-width: 0; }
+.app-shell .item-top .eyebrow { font-size: 10px; }
+.app-shell .item-top h3 { margin-top: 3px; font-size: 17px; line-height: 1.5; overflow-wrap: anywhere; }
+.app-shell .item-mark, .app-shell .item-mark.pill, .app-shell .facility-icon, .app-shell .alchemy-mark, .app-shell .sect-banner-symbol, .app-shell .sect-choice-mark, .app-shell .sect-compact-mark {
+  border-radius: 2px;
+  border: 1px solid var(--pixel-border-bright);
+  background: var(--pixel-panel-inset);
+  box-shadow: inset 1px 1px 0 #c5dfeb12, 2px 2px 0 var(--pixel-edge);
+}
+.app-shell .item-mark { width: 48px; height: 48px; }
+.app-shell .item-mark.pill { color: var(--gold); }
+.app-shell .item-mark.book { color: var(--gold); }
+.app-shell .item-count { color: var(--gold); font: 600 14px/1.4 "Segoe UI", sans-serif; }
+.app-shell .item-card > p, .app-shell .recipe-card > p, .app-shell .facility-card > p, .app-shell .action-card > p, .app-shell .person-story, .app-shell .sect-choice > p { font-size: 14px; line-height: 1.7; margin: 12px 0; min-height: 0; }
+.app-shell .item-buttons { gap: 8px; flex-wrap: wrap; }
+.app-shell .item-buttons .button { padding-inline: 11px; flex: 1; }
+.app-shell .item-buttons .text-button { font-size: 13px; }
+.app-shell .item-price { gap: 6px; }
+.app-shell .item-price strong { color: var(--gold); font: 600 21px/1.4 "Segoe UI", sans-serif; }
+.app-shell .item-price > span, .app-shell .item-price > small { font-size: 12px; }
+.app-shell .recipe-card h3 { font-size: 20px; margin: 12px 0 6px; }
+.app-shell .recipe-materials { margin: 16px 0; gap: 8px; font-size: 14px; }
+.app-shell .recipe-materials span { gap: 10px; }
+.app-shell .recipe-requirement { padding: 10px 0; font-size: 12px; line-height: 1.7; }
+.app-shell .alchemy-overview { gap: 18px; margin-bottom: 14px; }
+.app-shell .alchemy-overview h2 { font-size: 23px; }
+.app-shell .alchemy-overview p { font-size: 14px; }
+.app-shell .alchemy-overview small { font-size: 12px; }
+.app-shell .alchemy-overview strong { color: var(--gold); }
+.app-shell .home-preview { min-height: 265px; gap: 18px; }
+.app-shell .home-diorama > .pixel-home-scene { height: 270px; border: 1px solid var(--pixel-border-bright); }
+.app-shell .home-furniture.furniture-mat { left: 45%; top: 64%; }
+.app-shell .home-furniture.furniture-array { left: 76%; top: 80%; }
+.app-shell .home-furniture.furniture-furnace { left: 17%; top: 52%; }
+.app-shell .home-furniture.furniture-library { left: 72%; top: 30%; }
+.app-shell .home-furniture.furniture-garden { left: 30%; top: 22%; }
+.app-shell .home-copy h2 { font-size: 27px; margin: 10px 0; }
+.app-shell .home-copy p { font-size: 14px; }
+.app-shell .home-score > span { font-size: 12px; }
+.app-shell .home-furniture > span { border-radius: 2px; background: var(--pixel-panel-inset); opacity: .8; }
+.app-shell .home-furniture > span.built { background: var(--jade-wash); box-shadow: 2px 2px 0 var(--pixel-edge); }
+.app-shell .home-furniture small { font-size: 10px; border: 1px solid var(--pixel-border); border-radius: 1px; background: var(--pixel-panel-inset); }
+.app-shell .facility-grid { margin-top: 14px; }
+.app-shell .facility-top { margin-bottom: 12px; }
+.app-shell .facility-card h3 { font-size: 19px; }
+.app-shell .facility-icon { width: 44px; height: 44px; }
+.app-shell .level-dots { gap: 4px; margin: auto 0 14px; padding-top: 8px; }
+.app-shell .level-dots i { height: 6px; border-radius: 0; }
+.app-shell .person-top { gap: 14px; }
+.app-shell .person-top h2 { font-size: 23px; }
+.app-shell .person-tags { flex-wrap: wrap; font-size: 12px; gap: 5px 10px; }
+.app-shell .bond-badge { border-radius: 1px; background: color-mix(in srgb, var(--gold) 14%, var(--paper)); color: var(--gold); font-size: 12px; }
+.app-shell .person-metrics { font-size: 13px; line-height: 1.7; gap: 8px; }
+.app-shell .person-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.app-shell .person-actions > .button { white-space: normal; }
+.app-shell .bond-button { min-height: 44px; border: 1px solid var(--pixel-border); border-radius: 2px; background: var(--pixel-panel-inset); color: var(--muted); font-size: 14px; }
+.app-shell .bond-button.bonded { color: var(--gold); border-color: var(--gold); background: color-mix(in srgb, var(--gold) 8%, var(--pixel-panel-inset)); }
+.app-shell .companion-trait, .app-shell .person-story-link, .app-shell .memorial-note { border-radius: 2px; background: var(--pixel-panel-inset); border-color: var(--pixel-border); }
+.app-shell .companion-trait h3 { font-size: 16px; }
+.app-shell .companion-trait h3 span, .app-shell .companion-trait small { font-size: 12px; }
+.app-shell .person-departed { opacity: .8; }
+.app-shell .memorial-note { font-size: 14px; }
+.app-shell .sect-hero { padding: 20px; gap: 20px; }
+.app-shell .sect-hero h1 { font-size: 27px; margin: 6px 0; }
+.app-shell .sect-hero p { font-size: 14px; }
+.app-shell .sect-hero > div:nth-child(2) { min-width: 0; }
+.app-shell .sect-banner-symbol { width: 72px; height: 72px; }
+.app-shell .identity-tags { flex-wrap: wrap; font-size: 12px; line-height: 1.7; }
+.app-shell .contribution-value { color: var(--gold); }
+.app-shell .contribution-value > small { font-size: 12px; }
+.app-shell .contribution-value > strong { color: var(--gold); font-size: 32px; }
+.app-shell .sect-ranks { margin: 20px 0; }
+.app-shell .sect-ranks > div > span { border-radius: 1px; background: var(--pixel-panel-inset); border-color: var(--pixel-border-bright); }
+.app-shell .sect-ranks > .achieved > span { color: var(--pixel-edge); background: var(--jade); border-color: var(--jade); }
+.app-shell .sect-ranks strong { font-size: 14px; }
+.app-shell .sect-ranks small { font-size: 11px; line-height: 1.6; text-align: center; }
+.app-shell .action-card { gap: 10px; }
+.app-shell .action-card h3 { font-size: 20px; }
+.app-shell .action-reward { padding: 10px 0; font-size: 14px; }
+.app-shell .action-reward small { font-size: 12px; line-height: 1.7; }
+.app-shell .quiet-row { margin: 16px 0; gap: 12px; }
+.app-shell .quiet-row p { font-size: 13px; line-height: 1.75; }
+.app-shell .sect-directory { margin: 14px 0; }
+.app-shell .sect-region-picker { margin: 12px 0; }
+.app-shell .sect-local-intro { margin: 12px 0; }
+.app-shell .sect-local-intro h3 { font-size: 20px; }
+.app-shell .sect-local-intro p { font-size: 14px; }
+.app-shell .sect-compact-card, .app-shell.in-game .sect-compact-card { padding: 0; margin: 10px 0; }
+.app-shell .sect-compact-summary { min-height: 72px; padding: 12px 15px; gap: 12px; }
+.app-shell .sect-compact-name strong { font-size: 18px; }
+.app-shell .sect-compact-name small { font-size: 13px; line-height: 1.65; }
+.app-shell .sect-compact-body { padding: 0 15px 12px; }
+.app-shell .sect-entry-line { padding: 10px 15px; gap: 6px 14px; font-size: 12px; background: var(--pixel-panel-inset); }
+.app-shell .sect-directory-actions { padding: 10px 15px 14px; }
+
+/* World map has no inherited paper-colored labels or circular markers. */
+.app-shell .world-layout { gap: 14px; }
+.app-shell .world-map, .app-shell.in-game .world-map { background: var(--pixel-panel-inset); padding: 0; min-height: 420px; }
+.app-shell .world-map > .mountain-scene { opacity: .6; filter: none; }
+.app-shell .map-label { color: var(--gold); text-shadow: 2px 2px 0 var(--pixel-edge); font-size: 20px; }
+.app-shell .map-routes path { stroke: var(--gold); stroke-opacity: .5; stroke-width: 2; stroke-dasharray: 5 6; }
+.app-shell .map-node { color: var(--ink); }
+.app-shell .map-node > span { width: 48px; height: 48px; border: 1px solid var(--pixel-border-bright); border-radius: 2px; background: var(--pixel-panel-inset); color: var(--jade); box-shadow: 3px 3px 0 var(--pixel-edge); }
+.app-shell .map-node > strong, .app-shell .map-node > small { color: var(--ink); background: var(--pixel-panel-inset); border: 1px solid var(--pixel-border); border-radius: 1px; padding: 3px 6px; }
+.app-shell .map-node > strong { font-size: 14px; white-space: nowrap; }
+.app-shell .map-node > small { font-size: 11px; }
+.app-shell .map-node.selected > span { color: var(--pixel-button-ink); background: var(--gold); border-color: var(--pixel-highlight); box-shadow: 3px 3px 0 var(--pixel-edge); }
+.app-shell .map-node.here > small { color: var(--jade); }
+.app-shell .map-node:hover > span { border-color: var(--jade); box-shadow: 0 0 0 2px var(--pixel-edge), 0 0 0 3px var(--jade); }
+.app-shell .map-footer { color: var(--muted); background: var(--pixel-panel-inset); padding: 5px 8px; font-size: 11px; border: 1px solid var(--pixel-border); }
+.app-shell .map-footer i { background: var(--jade); border-radius: 0; }
+.app-shell .region-symbol { width: 54px; height: 54px; margin: 15px 0 12px; border-radius: 2px; background: var(--pixel-panel-inset); font-size: 29px; }
+.app-shell .region-detail h2 { font-size: 25px; }
+.app-shell .region-detail > p { font-size: 14px; margin-top: 12px; }
+.app-shell .region-detail .region-subtitle { color: var(--gold); font-size: 13px; margin-top: 5px; }
+.app-shell .metric-pairs { margin: 15px 0; padding: 14px 0; gap: 14px; }
+.app-shell .metric-pairs span { font-size: 12px; }
+.app-shell .metric-pairs strong { font-size: 15px; }
+.app-shell .world-weather { gap: 14px; margin-top: 14px; }
+.app-shell .world-weather p { font-size: 14px; }
+.app-shell .inline-stats { font-size: 13px; margin-top: 14px; }
+.app-shell .phase-track { margin: 15px 0 10px; gap: 4px; }
+.app-shell .phase-track span { border-radius: 1px; background: var(--pixel-panel-inset); border: 1px solid var(--pixel-border); font-size: 11px; }
+.app-shell .phase-track span.active { border-color: var(--jade); background: var(--jade-wash); }
+
+/* Character, story, chronicle, archive, and result pages. */
+.app-shell .life-identity, .app-shell .life-world-identity, .app-shell .life-training, .app-shell .attainments-panel { margin-bottom: 14px; }
+.app-shell .life-identity { display: flow-root; }
+.app-shell .life-identity > .life-pixel-portrait { float: right; display: block; width: 72px; height: 84px; margin: 0 0 10px 14px; }
+.app-shell .life-identity h1 { font-size: 27px; margin: 6px 0; gap: 10px; }
+.app-shell .life-identity h1, .app-shell .archive-card h3, .app-shell .biography h1, .app-shell .save-slot h3 { overflow-wrap: anywhere; }
+.app-shell .life-world-identity h2 { font-size: 22px; }
+.app-shell .life-world-identity > div > span, .app-shell .fate-arc-effects > span { border-radius: 1px; border: 1px solid var(--pixel-border); background: var(--pixel-panel-inset); }
+.app-shell .story-panel, .app-shell.in-game .story-panel { border-left: 3px solid var(--gold); margin-bottom: 14px; }
+.app-shell .story-present h2 { font-size: 22px; }
+.app-shell .story-description, .app-shell .story-chapters p, .app-shell .story-effects li, .app-shell .fate-arc p { font-size: 14px; line-height: 1.75; }
+.app-shell .story-person { border-radius: 2px; background: var(--pixel-panel-inset); margin-top: 13px; padding: 11px; min-height: 66px; }
+.app-shell .story-person small, .app-shell .story-person-link, .app-shell .story-next { font-size: 12px; }
+.app-shell .story-history h3, .app-shell .story-effects h3 { font-size: 13px; }
+.app-shell .story-chapters { gap: 14px; }
+.app-shell .story-chapters h4 { font-size: 15px; }
+.app-shell .story-chapter-age small { font-size: 11px; }
+.app-shell .story-effects { margin-top: 15px; padding-top: 13px; }
+.app-shell .story-history-link, .app-shell .fate-arc summary { font-size: 14px; }
+.app-shell .life-map-header { margin-bottom: 15px; gap: 12px; }
+.app-shell .life-map-header h3 { font-size: 21px; }
+.app-shell .year-map { padding: 8px; margin-bottom: 16px; background: var(--pixel-panel-inset); border: 1px solid var(--pixel-border); gap: 3px; }
+.app-shell .year-cell { border-radius: 0; }
+.app-shell .life-chart { background: var(--pixel-panel-inset); border: 1px solid var(--pixel-border); border-radius: 1px; padding: 8px; }
+.app-shell .chart-grid text, .app-shell .chart-axis { fill: var(--muted); }
+.app-shell .chart-health, .app-shell .chart-mind { stroke-width: 2; stroke-linejoin: miter; }
+.app-shell .chart-legend, .app-shell .chart-legend > small { font-size: 12px; flex-wrap: wrap; gap: 9px 16px; }
+.app-shell .log-row { gap: 12px; padding: 14px 0; }
+.app-shell .log-age { width: 37px; min-width: 37px; padding-top: 3px; color: var(--muted); }
+.app-shell .log-age strong { font-size: 22px; color: var(--gold); }
+.app-shell .log-age small { font-size: 11px; }
+.app-shell .log-kind { padding: 2px 5px; border: 1px solid var(--pixel-border); border-radius: 1px; font-size: 11px; background: var(--pixel-panel-inset); color: var(--jade); }
+.app-shell .kind-economy, .app-shell .kind-encounter { color: var(--gold); background: var(--pixel-panel-inset); }
+.app-shell .kind-ending { color: var(--red); background: var(--pixel-panel-inset); }
+.app-shell .log-content h4, .app-shell.in-game .log-content h4 { font-size: 15px; line-height: 1.6; }
+.app-shell .log-content p, .app-shell.in-game .log-content p { font-size: 14px; line-height: 1.8; }
+.app-shell .log-row > .star-button { width: 44px; min-width: 44px; opacity: .7; }
+.app-shell .log-row > .star-button.starred { opacity: 1; color: var(--gold); }
+.app-shell .achievements { margin-bottom: 14px; }
+.app-shell .achievement-grid { gap: 12px; }
+.app-shell .achievement { background: var(--pixel-panel-inset); border: 1px solid var(--pixel-border); padding: 12px 8px; gap: 8px; opacity: .65; }
+.app-shell .achievement.unlocked { opacity: 1; border-color: #8e8057; }
+.app-shell .achievement > span { border-radius: 1px; width: 46px; height: 46px; background: var(--pixel-panel); }
+.app-shell .achievement > strong { font-size: 14px; }
+.app-shell .achievement > small { font-size: 12px; line-height: 1.6; }
+.app-shell .archive-layout { gap: 14px; }
+.app-shell .archive-list { gap: 10px; }
+.app-shell .archive-card { padding: 14px 35px 14px 14px; }
+.app-shell .archive-card.active { border-color: var(--gold); background: var(--pixel-panel-raised); }
+.app-shell .archive-card h3 { font-size: 21px; margin: 6px 0; }
+.app-shell .archive-card p { font-size: 14px; }
+.app-shell .archive-card > small { font-size: 12px; }
+.app-shell .biography h1 { font-size: 30px; }
+.app-shell .biography-header { margin-bottom: 16px; }
+.app-shell .biography-facts { gap: 12px; padding: 14px 0; }
+.app-shell .biography-facts span { font-size: 12px; margin-bottom: 6px; }
+.app-shell .biography-facts strong { font-size: 14px; }
+.app-shell .biography blockquote { margin: 18px 0; font-size: 16px; line-height: 1.85; }
+.app-shell .legacy { font-size: 14px; }
+.app-shell .biography-divider { margin: 20px 0 8px; font-size: 12px; }
+.app-shell .attainments-list { gap: 12px; }
+.app-shell .attainments-list article { background: var(--pixel-panel-inset); border: 1px solid var(--pixel-border); border-left: 3px solid var(--gold); padding: 12px; }
+.app-shell .expedition-offers { gap: 14px; }
+.app-shell .expedition-pixel-mark { float: right; margin: 0 0 8px 12px; }
+.app-shell .expedition-known { clear: both; }
+.app-shell .expedition-offer h2, .app-shell .expedition-active h2, .app-shell .expedition-results > h2 { font-size: 22px; margin-bottom: 10px; }
+.app-shell .expedition-known { gap: 8px; margin: 12px 0; font-size: 14px; }
+.app-shell .expedition-scene, .app-shell.in-game .expedition-scene { font-size: 16px; line-height: 1.85; margin: 12px 0 18px; }
+.app-shell .expedition-heading .eyebrow, .app-shell .expedition-heading > span:last-child { font-size: 12px; }
+.app-shell .expedition-choices { gap: 10px; }
+.app-shell .expedition-resume { border-block: 1px solid var(--pixel-border); background: var(--pixel-panel-raised); color: var(--jade); }
+.app-shell .expedition-retreat { margin-top: 16px; padding-top: 12px; }
+.app-shell .expedition-result { padding: 14px 0; }
+.app-shell .expedition-result h3 { font-size: 19px; }
+.app-shell .expedition-result p { font-size: 15px; line-height: 1.8; }
+
+/* Every modal, including confirmations and save errors, uses the same frame. */
+.app-shell .modal-backdrop { background: #020a13c9; backdrop-filter: blur(2px); padding: 22px; }
+.app-shell .modal { background: var(--pixel-panel); border: 2px solid var(--pixel-border-bright); border-radius: 2px; box-shadow: 5px 5px 0 #020a13, 0 20px 70px #0008; }
+.app-shell .modal-header, .app-shell.in-game .modal-header { padding: 16px 20px; border-bottom: 2px solid var(--pixel-border); background: var(--pixel-panel-inset); gap: 12px; }
+.app-shell .modal-header > div { min-width: 0; }
+.app-shell .modal-header h2, .app-shell.in-game .modal-header h2 { font-size: 22px; margin-top: 4px; line-height: 1.5; }
+.app-shell .modal-header .eyebrow { color: var(--gold); font-size: 11px; }
+.app-shell .modal-header > .icon-button, .app-shell.in-game .modal-header > .icon-button { width: 44px; height: 44px; min-width: 44px; background: var(--pixel-panel); border: 1px solid var(--pixel-border); }
+.app-shell .modal-body, .app-shell.in-game .modal-body { padding: 20px; }
+.app-shell .modal-actions { margin-top: 20px; gap: 10px; flex-wrap: wrap; }
+.app-shell .modal .form-field { font-size: 14px; margin-bottom: 18px; gap: 8px; }
+.app-shell .modal .form-field small { font-size: 13px; line-height: 1.75; min-height: 0; }
+.app-shell .modal .field-label { font-size: 14px; margin-bottom: 10px; }
+.app-shell .modal .form-field input, .app-shell .modal .form-field select { min-height: 44px; font-size: 16px; }
+.app-shell .input-with-button > input { border-radius: 1px 0 0 1px; }
+.app-shell .input-with-button > button { min-height: 44px; border-radius: 0 1px 1px 0; background: var(--pixel-panel-raised); }
+.app-shell .select-card, .app-shell .focus-picker-option, .app-shell .preparation-option {
+  border: 1px solid var(--pixel-border);
+  border-radius: 2px;
+  background: var(--pixel-panel-inset);
+  box-shadow: inset 0 1px 0 #b1c8cf0a;
+}
+.app-shell .select-card.selected, .app-shell .focus-picker-option.active, .app-shell .preparation-option.selected { border-color: var(--jade); background: var(--jade-wash); box-shadow: inset 3px 0 0 var(--jade); }
+.app-shell .modal .select-card strong { font-size: 16px; }
+.app-shell .modal .select-card span { font-size: 14px; line-height: 1.65; }
+.app-shell .modal .select-card small { font-size: 12px; line-height: 1.6; }
+.app-shell .check-label { font-size: 14px; line-height: 1.7; min-height: 44px; }
+.app-shell .check-label small { font-size: 13px; line-height: 1.7; }
+.app-shell .seed-details > summary { font-size: 14px; color: var(--jade); }
+.app-shell .event-story, .app-shell.in-game .event-story { font-size: 16px; line-height: 1.85; margin-bottom: 18px; }
+.app-shell .event-cause { border-radius: 1px; border-left: 3px solid var(--gold); background: var(--pixel-panel-inset); margin-bottom: 16px; }
+.app-shell .event-cause span { font-size: 12px; }
+.app-shell .event-cause p, .app-shell.in-game .event-cause p { font-size: 14px; line-height: 1.7; }
+.app-shell .event-choice, .app-shell.in-game .event-choice { min-height: 56px; padding: 13px; gap: 12px; border-radius: 2px; border: 1px solid var(--pixel-border-bright); background: var(--pixel-panel-inset); box-shadow: inset 0 -2px 0 var(--pixel-edge); }
+.app-shell .event-choice:hover:not(:disabled) { background: var(--pixel-panel-raised); border-color: var(--gold); }
+.app-shell .event-choice > span { min-width: 0; }
+.app-shell .event-choice .choice-number { font: 700 17px/1.5 var(--serif); border: 1px solid var(--pixel-border); background: var(--pixel-panel); min-width: 30px; text-align: center; padding: 3px; }
+.app-shell .event-choice strong, .app-shell.in-game .event-choice strong { font-size: 15px; line-height: 1.6; }
+.app-shell .event-choice small, .app-shell.in-game .event-choice small { font-size: 14px; line-height: 1.7; }
+.app-shell .event-choice em, .app-shell.in-game .event-choice em { font-size: 12px; }
+.app-shell .event-footnote { font-size: 12px; line-height: 1.7; margin-top: 16px; }
+.app-shell .breakthrough-summary { padding: 0 0 16px; }
+.app-shell .breakthrough-seal { width: 64px; height: 64px; border-radius: 2px; background: var(--pixel-panel-inset); box-shadow: inset 0 0 0 3px var(--pixel-panel), inset 0 0 0 4px #a88e55; margin-bottom: 16px; }
+.app-shell .breakthrough-summary > strong { font: 700 46px/1.4 "Segoe UI", sans-serif; color: var(--gold); }
+.app-shell .breakthrough-summary > span { font-size: 12px; }
+.app-shell .breakthrough-summary > p { font-size: 14px; }
+.app-shell .breakthrough-facts { padding: 15px 0; gap: 11px; }
+.app-shell .breakthrough-facts > span { font-size: 14px; flex-wrap: wrap; }
+.app-shell .breakthrough-preparation, .app-shell .breakthrough-insight { border: 1px solid var(--pixel-border); border-radius: 2px; background: var(--pixel-panel-inset); padding: 13px; margin-bottom: 14px; }
+.app-shell .cultivation-insight { color: var(--muted); }
+.app-shell .cultivation-insight summary { font-size: 14px; min-height: 44px; }
+.app-shell .cultivation-insight p { font-size: 13px; }
+.app-shell .cultivation-insight dt, .app-shell .cultivation-insight dd { font-size: 12px; }
+.app-shell .insight-total { font-size: 13px; }
+.app-shell .save-slots { margin: 18px 0; gap: 10px; }
+.app-shell .save-slot { border: 1px solid var(--pixel-border); border-radius: 2px; background: var(--pixel-panel-inset); padding: 15px; gap: 14px; }
+.app-shell .slot-number { color: var(--gold); opacity: 1; font: 700 24px/1.5 "Segoe UI", sans-serif; }
+.app-shell .save-slot > div { min-width: 0; }
+.app-shell .save-slot h3 { font-size: 17px; }
+.app-shell .save-slot p { font-size: 13px; margin-top: 6px; }
+.app-shell .slot-actions { margin-top: 12px; gap: 8px; flex-wrap: wrap; }
+.app-shell .slot-actions .text-button { margin-left: auto; }
+.app-shell .save-transfer { gap: 10px; }
+.app-shell .import-message { font-size: 14px; line-height: 1.7; }
+.app-shell .director-settings { background: var(--pixel-panel-inset); padding: 14px; margin: 16px 0; }
+.app-shell .director-settings p { font-size: 14px; }
+.app-shell .director-settings > small { color: var(--muted); opacity: 1; font-size: 13px; }
+.app-shell .director-status-line { font-size: 12px; }
+.app-shell .help-grid { gap: 14px; }
+.app-shell .help-grid section { border: 1px solid var(--pixel-border); border-radius: 1px; padding: 14px; background: var(--pixel-panel-inset); }
+.app-shell .help-grid section > span { font-size: 23px; opacity: 1; }
+.app-shell .help-grid h3 { font-size: 17px; margin: 6px 0 9px; }
+.app-shell .help-grid p { font-size: 14px; line-height: 1.75; }
+.app-shell .help-facts { font-size: 12px; gap: 10px 15px; padding: 15px 0; margin-top: 16px; }
+.app-shell .ending-modal > p { font-size: 16px; line-height: 1.85; margin: 18px 0; }
+.app-shell .ending-stats { gap: 8px; padding: 16px 0; margin: 18px 0; }
+.app-shell .ending-stats > span { font-size: 12px; }
+.app-shell .ending-stats strong { font: 700 29px/1.4 "Segoe UI", sans-serif; color: var(--gold); }
+.app-shell .attainment-reveal { gap: 16px; }
+.app-shell .attainment-reveal article { padding: 18px; border: 1px solid var(--gold); border-radius: 2px; background: var(--pixel-panel-inset); }
+.app-shell .attainment-reveal h3 { color: var(--gold); font-size: 23px; }
+.app-shell .attainment-reveal p { font-size: 15px; line-height: 1.8; }
+.app-shell .toast { border: 1px solid var(--gold); border-radius: 2px; background: var(--pixel-panel-inset); color: var(--ink); padding: 7px 10px 7px 14px; gap: 10px; box-shadow: 3px 3px 0 var(--pixel-edge); font-size: 14px; }
+.app-shell .toast > svg { color: var(--jade); }
+.app-shell .toast > button { min-width: 44px; min-height: 44px; flex-shrink: 0; }
+
+@media (min-width: 641px) and (max-width: 1050px) {
+  :root, :root[data-theme="light"], :root[data-theme="dark"] { --sidebar: 76px; }
+  .app-shell .sidebar { padding: 18px 8px 12px; }
+  .app-shell .sidebar .brand { justify-content: center; }
+  .app-shell .nav-item { justify-content: center; padding: 10px 7px; }
+  .app-shell .sidebar-bottom button { justify-content: center; }
+  .app-shell .page-content { padding-inline: 18px; }
+  .app-shell .topbar { padding-inline: 18px; }
+}
+
+@media (max-width: 640px) {
+  :root, :root[data-theme="light"], :root[data-theme="dark"] { --sidebar: 0px; }
+  .app-shell.in-game .topbar { height: 44px; min-height: 44px; padding: 0 10px; }
+  .app-shell.in-game .topbar .icon-button { width: 44px; height: 44px; min-width: 44px; }
+  .app-shell.in-game .topbar .save-button { min-height: 44px; padding: 8px 10px; font-size: 13px; border-block: 0; box-shadow: none; }
+  .app-shell.in-game .topbar-actions { gap: 2px; }
+  .app-shell.in-game .breadcrumb { font-size: 14px; }
+  .app-shell.in-game .page-content { padding: 10px 10px calc(164px + env(safe-area-inset-bottom)); }
+  .app-shell .section-title, .app-shell.in-game .section-title { gap: 8px; margin-bottom: 12px; }
+  .app-shell .section-title h2, .app-shell.in-game .section-title h2 { font-size: 21px; }
+  .app-shell .section-title p, .app-shell.in-game .section-title p { font-size: 14px; line-height: 1.65; }
+  .app-shell .section-title > .soft-badge { font-size: 11px; padding: 5px 7px; white-space: normal; text-align: center; max-width: 110px; }
+  .app-shell .section-title > .wallet { font-size: 19px; padding: 5px 7px; gap: 5px; flex-wrap: wrap; justify-content: flex-end; }
+  .app-shell .section-title > .wallet small { font-size: 11px; }
+  .app-shell.in-game .panel, .app-shell.in-game .story-panel { padding: 13px; }
+  .app-shell .panel .section-title h2 { font-size: 19px; }
+  .app-shell.in-game .notice { padding: 11px; margin: 13px 0; }
+  .app-shell .mobile-bottom-nav {
+    min-height: calc(58px + env(safe-area-inset-bottom));
+    padding: 3px 5px calc(3px + env(safe-area-inset-bottom));
+    gap: 4px;
+    background: var(--pixel-panel-inset);
+    border-top: 1px solid var(--pixel-border-bright);
+    box-shadow: 0 -2px 0 var(--pixel-edge);
+  }
+  .app-shell .mobile-bottom-nav button { min-height: 51px; border: 1px solid var(--pixel-border); border-radius: 1px; background: var(--pixel-panel); gap: 2px; padding: 3px; }
+  .app-shell .mobile-bottom-nav button > span { font-size: 13px; font-weight: 600; }
+  .app-shell .mobile-bottom-nav button > svg { width: 21px; height: 21px; }
+  .app-shell .mobile-bottom-nav button.active { color: var(--pixel-button-ink); border-color: var(--pixel-highlight); border-radius: 1px; background: var(--gold); box-shadow: inset 0 2px 0 #ffe7a4, inset 0 -2px 0 #b99147; }
+  .app-shell .mobile-bottom-nav button > i { width: 7px; height: 7px; border-radius: 0; background: var(--red); box-shadow: 0 0 0 2px var(--pixel-panel-inset); top: 7px; }
+  .app-shell .mobile-subnav { padding: 5px 10px; gap: 5px; background: var(--pixel-panel-inset); border-bottom: 1px solid var(--pixel-border); }
+  .app-shell .mobile-subnav button { min-height: 44px; border: 1px solid var(--pixel-border); border-radius: 1px; background: var(--pixel-panel); font-size: 14px; }
+  .app-shell .mobile-subnav button.active { color: var(--gold); border-color: var(--gold); border-radius: 1px; background: var(--pixel-panel-raised); box-shadow: inset 0 -2px 0 var(--gold); }
+  .app-shell.in-game .time-dock:has(> .year-clock) { bottom: calc(58px + env(safe-area-inset-bottom)); padding: 7px 10px; gap: 6px 8px; border-top-width: 1px; }
+  .app-shell.in-game .time-controls { gap: 7px; }
+  .app-shell.in-game .time-controls .button { min-height: 44px; padding: 8px 12px; font-size: 14px; }
+  .app-shell.in-game .speed-select { height: 44px; min-height: 44px; width: 59px; min-width: 59px; font-size: 14px; }
+  .app-shell.in-game .auto-toggle { min-height: 44px; font-size: 12px; gap: 7px; }
+  .app-shell.in-game .year-clock-track { height: 4px; }
+  .app-shell.in-game .year-clock-caption, .app-shell.in-game .year-clock-countdown { font-size: 11px; }
+  .app-shell.in-game .toast { bottom: calc(153px + env(safe-area-inset-bottom)); font-size: 14px; max-width: calc(100% - 20px); }
+  .app-shell.in-game .expedition-time-dock:has(> .year-clock) { padding: 7px 10px; min-height: 44px; }
+  .app-shell .tab-bar { gap: 4px; margin-bottom: 12px; }
+  .app-shell.in-game .tab-bar > button { flex: 1; min-height: 44px; font-size: 14px; padding: 9px 5px; justify-content: center; }
+  .app-shell .tab-note { flex: 1 0 100%; text-align: right; padding: 3px 5px; font-size: 12px; }
+  .app-shell .inventory-toolbar, .app-shell .chronicle-toolbar { gap: 9px; margin: 10px 0; }
+  .app-shell.in-game .filter-chips button { min-height: 44px; font-size: 13px; padding: 8px 10px; }
+  .app-shell .filter-chips { flex-wrap: wrap; gap: 5px; overflow: visible; }
+  .app-shell .search-input { font-size: 16px; width: 100%; }
+  .app-shell .item-grid, .app-shell .recipe-grid, .app-shell .facility-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+  .app-shell.in-game .item-card, .app-shell.in-game .recipe-card, .app-shell.in-game .facility-card { padding: 11px; }
+  .app-shell .item-top { gap: 7px; }
+  .app-shell .item-mark { width: 48px; height: 48px; }
+  .app-shell .item-top h3 { font-size: 15px; }
+  .app-shell .item-top .eyebrow { font-size: 10px; }
+  .app-shell .item-count { font-size: 13px; }
+  .app-shell .item-card > p, .app-shell.in-game .item-card > p, .app-shell.in-game .recipe-card > p, .app-shell.in-game .facility-card > p { font-size: 14px; line-height: 1.7; margin: 9px 0; }
+  .app-shell .item-buttons { gap: 4px; }
+  .app-shell .item-buttons .button, .app-shell .item-card > .button, .app-shell .recipe-card .button, .app-shell .facility-card .button { padding: 8px 5px; min-height: 44px; font-size: 13px; gap: 4px; }
+  .app-shell .item-buttons .text-button { min-height: 44px; font-size: 13px; }
+  .app-shell .item-price { gap: 4px; margin-bottom: 9px; }
+  .app-shell .item-price > small { flex-basis: 100%; margin-left: 0; }
+  .app-shell .recipe-card h3 { font-size: 18px; }
+  .app-shell .recipe-materials { font-size: 13px; }
+  .app-shell .recipe-materials span { flex-wrap: wrap; gap: 2px 6px; }
+  .app-shell .recipe-materials strong { margin-left: auto; }
+  .app-shell .recipe-requirement { font-size: 12px; }
+  .app-shell .alchemy-overview { gap: 10px; flex-wrap: wrap; }
+  .app-shell .alchemy-overview > .alchemy-mark { width: 48px; height: 48px; }
+  .app-shell .alchemy-overview h2 { font-size: 21px; }
+  .app-shell .alchemy-overview > div:nth-child(2) { flex: 1; min-width: 0; }
+  .app-shell .alchemy-overview > div:nth-child(n+3) { min-width: 0; flex: 1; gap: 8px; background: var(--pixel-panel-inset); padding: 8px; }
+  .app-shell .alchemy-overview strong { font-size: 23px; }
+  .app-shell .alchemy-overview small { font-size: 12px; }
+  .app-shell .home-preview { min-height: 0; gap: 8px; }
+  .app-shell .home-diorama > .pixel-home-scene { height: 190px; }
+  .app-shell .home-copy h2 { font-size: 23px; max-width: 72%; }
+  .app-shell .home-copy p { font-size: 14px; max-width: 80%; }
+  .app-shell .home-score { top: 7px; }
+  .app-shell .home-score > span { font-size: 11px; }
+  .app-shell .home-furniture small { font-size: 9px; padding: 2px 3px; }
+  .app-shell .facility-card h3 { font-size: 17px; }
+  .app-shell .level-badge { font-size: 10px; padding: 4px 5px; }
+  .app-shell .person-top h2 { font-size: 22px; }
+  .app-shell .person-story { margin: 13px 0; }
+  .app-shell .person-actions { gap: 7px; }
+  .app-shell .person-actions .button { padding-inline: 7px; }
+  .app-shell .companion-trait { padding: 10px; margin-bottom: 12px; }
+  .app-shell .sect-hero { gap: 12px; }
+  .app-shell .sect-hero h1 { font-size: 23px; }
+  .app-shell .sect-banner-symbol { width: 50px; height: 50px; font-size: 27px; }
+  .app-shell .sect-hero .identity-tags { margin-top: 9px; font-size: 12px; }
+  .app-shell .contribution-value { margin-left: 62px; gap: 10px; }
+  .app-shell .contribution-value > strong { font-size: 25px; }
+  .app-shell .sect-ranks { gap: 5px; }
+  .app-shell .sect-ranks strong { font-size: 12px; }
+  .app-shell .sect-ranks small { font-size: 11px; }
+  .app-shell .sect-region-picker button { flex: 1 1 43%; white-space: normal; }
+  .app-shell.in-game .sect-compact-card { padding: 0; }
+  .app-shell .sect-compact-summary { padding: 12px; gap: 10px; }
+  .app-shell .sect-compact-body { padding: 0 12px 12px; }
+  .app-shell .sect-entry-line { padding: 10px 12px; }
+  .app-shell .sect-directory-actions { padding: 10px 12px 12px; }
+  .app-shell .world-layout, .app-shell .world-weather { gap: 12px; }
+  .app-shell.in-game .world-map { min-height: 290px; }
+  .app-shell .map-label { top: 10px; left: 11px; font-size: 17px; }
+  .app-shell .map-node > span, .app-shell.in-game .map-node > span { width: 44px; height: 44px; font-size: 23px; margin-bottom: 5px; }
+  .app-shell .map-node > strong { font-size: 13px; padding: 2px 4px; }
+  .app-shell .map-footer { bottom: 10px; left: 10px; right: 10px; font-size: 11px; }
+  .app-shell .region-symbol { width: 48px; height: 48px; margin-top: 12px; }
+  .app-shell .region-detail h2 { font-size: 23px; }
+  .app-shell .region-lore { margin: 12px 0; padding-top: 11px; }
+  .app-shell .phase-track { flex-wrap: wrap; }
+  .app-shell .phase-track span { flex: 1 1 25%; font-size: 11px; }
+  .app-shell .life-identity h1 { font-size: 25px; }
+  .app-shell .life-identity > div { font-size: 13px; gap: 8px 14px; margin-top: 11px; }
+  .app-shell .life-world-identity h2, .app-shell.in-game .life-world-identity h2 { font-size: 21px; }
+  .app-shell .story-layout { gap: 16px; }
+  .app-shell .story-present h2 { font-size: 20px; }
+  .app-shell .story-person { gap: 8px; }
+  .app-shell .story-person-link { font-size: 12px; }
+  .app-shell .life-map-header { flex-wrap: wrap; gap: 6px; }
+  .app-shell .life-map-header .quiet { font-size: 12px; }
+  .app-shell .chart-legend { gap: 7px 12px; margin-top: 12px; }
+  .app-shell .chart-legend > small { font-size: 11px; }
+  .app-shell .log-row { gap: 8px; }
+  .app-shell .log-age { min-width: 28px; width: 28px; }
+  .app-shell .log-age strong { font-size: 20px; }
+  .app-shell .log-row > .star-button { width: 44px; min-width: 44px; margin-right: -5px; }
+  .app-shell .achievement-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+  .app-shell .achievement { padding: 10px 7px; }
+  .app-shell .achievement > small { font-size: 12px; }
+  .app-shell .archive-card { padding: 13px 28px 13px 13px; }
+  .app-shell .archive-card h3 { font-size: 20px; }
+  .app-shell .biography-header { gap: 10px; flex-wrap: wrap; }
+  .app-shell .biography h1 { font-size: 26px; }
+  .app-shell .biography h1 small { font-size: 13px; }
+  .app-shell .biography-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .app-shell .biography-events { padding-right: 0; }
+  .app-shell .attainments-list { grid-template-columns: minmax(0, 1fr); }
+  .app-shell .expedition-offers { gap: 12px; grid-template-columns: minmax(0, 1fr); }
+  .app-shell .expedition-active h2, .app-shell .expedition-offer h2 { font-size: 21px; }
+  .app-shell .expedition-choices .event-choice { padding: 12px; }
+  .app-shell .modal-backdrop { padding: 8px; }
+  .app-shell .modal { max-height: calc(100dvh - 16px); width: 100%; border-radius: 2px; }
+  .app-shell .modal-header, .app-shell.in-game .modal-header { padding: 12px; gap: 8px; }
+  .app-shell .modal-header h2, .app-shell.in-game .modal-header h2 { font-size: 20px; }
+  .app-shell .modal-body, .app-shell.in-game .modal-body { padding: 13px; }
+  .app-shell .modal-actions > .button { flex: 1; }
+  .app-shell .save-slot { padding: 12px; gap: 10px; }
+  .app-shell .slot-number { font-size: 21px; }
+  .app-shell .save-transfer .button { flex: 1 1 45%; min-height: 44px; font-size: 14px; padding: 10px 8px; }
+  .app-shell .help-grid { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .app-shell .help-grid section { padding: 12px; }
+  .app-shell .director-status-line { gap: 6px; }
+  .app-shell .event-choice, .app-shell.in-game .event-choice { gap: 9px; padding: 12px 10px; }
+  .app-shell .event-choice .choice-number { min-width: 26px; font-size: 15px; }
+  .app-shell .breakthrough-facts > span { font-size: 13px; }
+  .app-shell .ending-stats strong { font-size: 26px; }
+}
+
+@media (max-width: 359px) {
+  .app-shell.in-game .page-content { padding-inline: 8px; }
+  .app-shell.in-game .panel { padding: 11px; }
+  .app-shell .item-grid, .app-shell .recipe-grid, .app-shell .facility-grid { grid-template-columns: minmax(0, 1fr); }
+  .app-shell .item-top { flex-wrap: nowrap; }
+  .app-shell .item-buttons .button { flex: initial; min-width: 95px; }
+  .app-shell .home-copy h2 { font-size: 21px; }
+  .app-shell .home-copy p { max-width: 75%; }
+  .app-shell.in-game .sect-compact-card { padding: 0; }
+  .app-shell .sect-compact-summary { gap: 8px; padding: 11px; }
+  .app-shell .sect-compact-name strong { font-size: 17px; }
+  .app-shell .sect-compact-mark { width: 38px; height: 42px; }
+  .app-shell .story-person { flex-wrap: wrap; }
+  .app-shell .story-person-link { margin-left: auto; }
+  .app-shell .slot-actions .button { flex: 1; padding-inline: 8px; }
+  .app-shell .slot-actions .text-button { flex: 1; }
+}
+
+@media print {
+  :root, :root[data-theme="light"], :root[data-theme="dark"] { color-scheme: light; --pixel-bg: white; --pixel-panel: white; --pixel-panel-inset: #f2f2f2; --pixel-text: #17252c; --pixel-muted: #425762; --pixel-border: #9caeb8; --pixel-jade: #236455; --pixel-gold: #856019; }
+  body { background: white; }
+  .app-shell .panel, .app-shell .story-panel { box-shadow: none; }
+}

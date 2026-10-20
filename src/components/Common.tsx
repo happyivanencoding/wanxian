@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { Icon } from './Art.tsx';
 import type { Action, Game, Log, Profile } from '../game/types.ts';
 export type PageId = 'journey' | 'opportunities' | 'life' | 'world' | 'sect' | 'home' | 'inventory' | 'people' | 'chronicle' | 'archives';
-export interface PageProps { game: Game; profile: Profile; act: (action: Action) => void; navigate: (page: PageId) => void; openBreakthrough: () => void; openEvent: () => void; newLife: () => void; pauseTime: () => void }
+export interface PageProps { game: Game; profile: Profile; act: (action: Action) => void; prefetchAction: (action: Action) => void; navigate: (page: PageId) => void; openBreakthrough: () => void; openEvent: () => void; newLife: () => void; pauseTime: () => void }
 export function Modal({ title, subtitle, children, onClose, wide = false }: { title: string; subtitle?: string; children: ReactNode; onClose: () => void; wide?: boolean }) {
   const titleId = useId();
   const ref = useRef<HTMLDivElement>(null);

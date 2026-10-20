@@ -18,7 +18,8 @@ import Life from './pages/Life.tsx';
 import { expeditionView } from './game/expeditions.ts';
 import { preparationView, progressionBenefits } from './game/progression.ts';
 import { BreakthroughPreparation } from './components/PreparationPanel.tsx';
-import { createDirectorClient, createDirectorTurn, type DirectorStatus } from './lib/directorClient.ts';
+import { createDirectorClient, type DirectorStatus } from './lib/directorClient.ts';
+import { createDirectorPrefetch } from './lib/directorPrefetch.ts';
 import DirectorSettings from './components/DirectorSettings.tsx';
 
 const NAV: { id: PageId; label: string; en: string; icon: string }[] = [
@@ -52,14 +53,12 @@ export default function App() {
   const [toast, setToast] = useState('');
   const [importMessage, setImportMessage] = useState('');
   const [newAttainments, setNewAttainments] = useState<{ id: string; name: string; description: string }[]>([]);
-  const [directorBusy, setDirectorBusy] = useState(false);
   const [directorStatus, setDirectorStatus] = useState<DirectorStatus>({ configured: false, reachable: false });
   const directorClient = useRef(createDirectorClient());
-  const directorTurn = useRef(createDirectorTurn());
-  const pendingAction = useRef('');
+  const directorPrefetch = useRef(createDirectorPrefetch(directorClient.current));
   const fileRef = useRef<HTMLInputElement>(null);
   const game = profile.game;
-  const cancelDirector = useCallback(() => { directorTurn.current.cancel(); pendingAction.current = ''; setDirectorBusy(false); }, []);
+  const cancelDirector = useCallback(() => { directorPrefetch.current.cancel(); }, []);
   const replaceProfile = useCallback((next: Profile) => { cancelDirector(); profileRef.current = next; setProfile(next); }, [cancelDirector]);
   const commitGame = useCallback((next: Game, showEnding = true) => {
     const previous = profileRef.current;
@@ -71,38 +70,39 @@ export default function App() {
       if (learned.length) { setNewAttainments(learned); setRunning(false); setModal('attainment'); }
     }
   }, [replaceProfile]);
-  const runAction = useCallback(async (action: DirectedAction) => {
+  const prepareAction = useCallback((action: DirectedAction) => {
+    const current = profileRef.current.game;
+    if (!current || !current.alive || profileRef.current.settings.directorEnabled === false || document.hidden) { cancelDirector(); return; }
+    const plan = planDirectedAction(current, action);
+    if (!plan.result.error && plan.request) directorPrefetch.current.prepare(current, JSON.stringify(action), plan.request);
+    else cancelDirector();
+  }, [cancelDirector]);
+  const runAction = useCallback((action: DirectedAction) => {
     const current = profileRef.current.game;
     if (!current) return;
-    const actionKey = JSON.stringify(action);
-    if (directorTurn.current.pending() && pendingAction.current === actionKey) return;
-    cancelDirector();
+    const decision = directorPrefetch.current.take(current, JSON.stringify(action));
     const plan = planDirectedAction(current, action);
-    let result = plan.result;
-    if (!result.error && plan.request && profileRef.current.settings.directorEnabled !== false) {
-      const ticket = directorTurn.current.begin(current);
-      pendingAction.current = actionKey; setDirectorBusy(true);
-      const reply = await directorClient.current.decide(plan.request, ticket.controller.signal);
-      if (!directorTurn.current.valid(ticket, profileRef.current.game)) return;
-      directorTurn.current.finish(ticket); pendingAction.current = ''; setDirectorBusy(false);
-      if (reply.source === 'startlux') result = commitDirectedAction(current, action, reply.decision);
-    }
+    const result = !plan.result.error && plan.request && decision && profileRef.current.settings.directorEnabled !== false
+      ? commitDirectedAction(current, action, decision) : plan.result;
     if (result.error) { if (action.type === 'advance' || action.type === 'auto') setRunning(false); setToast(result.error); if (current.pending) setEventOpen(true); return; }
     commitGame(result.game);
     if (result.game.pending) setEventOpen(true);
     if (!['advance', 'auto', 'focus', 'star', 'choose', 'prepare'].includes(action.type) && !action.type.startsWith('expedition-')) setToast(result.game.logs.at(-1)?.title || '已完成');
-  }, [cancelDirector, commitGame]);
-  const apply = useCallback((action: Action) => { void runAction(action); }, [runAction]);
+  }, [commitGame]);
+  const apply = useCallback((action: Action) => { runAction(action); }, [runAction]);
+  const prefetchAction = useCallback((action: Action) => {
+    if (page === 'people' && !modal && !confirmation && action.type === 'npc' && action.interaction !== 'bond') prepareAction(action);
+  }, [page, modal, confirmation, prepareAction]);
   const refreshDirector = useCallback(() => { void directorClient.current.getStatus(true).then(setDirectorStatus); }, []);
   const openModal = useCallback((name: ModalName) => { cancelDirector(); setRunning(false); setModal(name); if (name === 'save') setImportMessage(''); if (name === 'settings') refreshDirector(); }, [cancelDirector, refreshDirector]);
   const navigate = useCallback((next: PageId) => { cancelDirector(); setRunning(next === 'journey'); setPage(next); window.scrollTo({ top: 0, behavior: 'instant' }); }, [cancelDirector]);
   useEffect(() => {
     refreshDirector();
     window.addEventListener('online', refreshDirector);
-    const offline = () => setDirectorStatus({ configured: false, reachable: false });
+    const offline = () => { cancelDirector(); setDirectorStatus({ configured: false, reachable: false }); };
     window.addEventListener('offline', offline);
-    return () => { directorTurn.current.cancel(); window.removeEventListener('online', refreshDirector); window.removeEventListener('offline', offline); };
-  }, [refreshDirector]);
+    return () => { cancelDirector(); window.removeEventListener('online', refreshDirector); window.removeEventListener('offline', offline); };
+  }, [refreshDirector, cancelDirector]);
   useEffect(() => {
     document.documentElement.dataset.theme = profile.settings.theme;
     document.documentElement.classList.toggle('reduced-motion', profile.settings.reducedMotion);
@@ -123,13 +123,18 @@ export default function App() {
   useEffect(() => { if (!toast) return; const timer = setTimeout(() => setToast(''), 4000); return () => clearTimeout(timer); }, [toast]);
   const onYearElapsed = useCallback(() => {
     const p = profileRef.current, g = p.game;
-    if (!g?.alive || g.pending || expeditionView(g).active || directorTurn.current.pending()) return;
-    void runAction(automatic ? { type: 'auto', policy: p.settings.policy } : { type: 'advance' });
+    if (!g?.alive || g.pending || expeditionView(g).active) return;
+    runAction(automatic ? { type: 'auto', policy: p.settings.policy } : { type: 'advance' });
   }, [automatic, runAction]);
   useEffect(() => {
-    if (!automatic || !running || page !== 'journey' || modal || confirmation || directorBusy || !game?.alive || !game.pending || requiresPlayerChoice(game) || expeditionView(game).active) return;
-    void runAction({ type: 'auto', policy: profile.settings.policy });
-  }, [automatic, running, page, modal, confirmation, directorBusy, game, profile.settings.policy, runAction]);
+    if (!running || page !== 'journey' || modal || confirmation || !game?.alive || game.pending || expeditionView(game).active || profile.settings.directorEnabled === false || document.hidden) return;
+    prepareAction(automatic ? { type: 'auto', policy: profile.settings.policy } : { type: 'advance' });
+    return cancelDirector;
+  }, [game, automatic, running, page, modal, confirmation, profile.settings, prepareAction, cancelDirector]);
+  useEffect(() => {
+    if (!automatic || !running || page !== 'journey' || modal || confirmation || !game?.alive || !game.pending || requiresPlayerChoice(game) || expeditionView(game).active) return;
+    runAction({ type: 'auto', policy: profile.settings.policy });
+  }, [automatic, running, page, modal, confirmation, game, profile.settings.policy, runAction]);
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if (!profileRef.current.game?.alive || page !== 'journey' || modal || confirmation || (eventOpen && profileRef.current.game.pending)) return;
@@ -165,7 +170,7 @@ export default function App() {
     } catch (error) { setImportMessage(error instanceof Error ? error.message : '无法读取此文件，原存档未变。'); }
     if (fileRef.current) fileRef.current.value = '';
   }
-  const pageProps: PageProps | null = game ? { game, profile, act: apply, navigate, openBreakthrough, openEvent: () => { setEventOpen(true); }, newLife, pauseTime: () => { cancelDirector(); setRunning(false); } } : null;
+  const pageProps: PageProps | null = game ? { game, profile, act: apply, prefetchAction, navigate, openBreakthrough, openEvent: () => { setEventOpen(true); }, newLife, pauseTime: () => { cancelDirector(); setRunning(false); } } : null;
   const pageViews = pageProps ? { journey: <Journey {...pageProps}/>, opportunities: <Opportunities {...pageProps}/>, life: <Life {...pageProps}/>, world: <WorldPage {...pageProps}/>, sect: <SectPage {...pageProps}/>, home: <HomePage {...pageProps}/>, inventory: <InventoryPage {...pageProps}/>, people: <PeoplePage {...pageProps}/>, chronicle: <ChroniclePage {...pageProps}/>, archives: <ArchivesPage {...pageProps}/> } : null;
   const event = game ? getEvent(game) : undefined;
   const playerChoice = Boolean(game && requiresPlayerChoice(game));
@@ -184,7 +189,7 @@ export default function App() {
     <main className={game ? 'page-content' : 'landing-content'}>{game ? pageViews?.[page] : <Landing onStart={newLife} onHelp={() => openModal('help')}/>}</main>
     {game && <footer className={`time-dock ${expedition ? 'expedition-time-dock' : ''}`}>
       {expedition && <button className="expedition-time-note" onClick={() => navigate('opportunities')}><Icon name="clock" size={16}/><span>此刻身在机缘中 · 光阴暂驻</span><Icon name="arrow" size={15}/></button>}
-      <YearClock active={Boolean(running && page === 'journey' && game.alive && !game.pending && !expedition && !modal && !confirmation && !directorBusy)} age={game.age} lifeId={game.id} durationMinutes={profile.settings.durationMinutes} speed={profile.settings.speed} onYear={onYearElapsed}/>
+      <YearClock active={Boolean(running && page === 'journey' && game.alive && !game.pending && !expedition && !modal && !confirmation)} age={game.age} lifeId={game.id} durationMinutes={profile.settings.durationMinutes} speed={profile.settings.speed} onYear={onYearElapsed}/>
       <div className="dock-life"><span className="live-dot"/><div><strong>{game.alive ? expedition ? '身在机缘中' : game.pending ? '抉择未定' : page !== 'journey' ? '处理事务中' : running ? '光阴流转' : '从容片刻' : '此生已结卷'}</strong><small>{game.age}岁 · {game.alive ? FOCUSES.find(f => f.id === game.focus)!.name : game.ending}</small></div></div>
       <div className="time-controls"><button className={`button ${running && page === 'journey' ? 'pause-button' : 'primary'}`} disabled={!game.alive || (page !== 'journey' && !expedition)} onClick={() => { if (expedition) { navigate('opportunities'); return; } if (game.pending) { setEventOpen(true); return; } cancelDirector(); setRunning(value => !value); }} title={expedition ? '回到当前机缘' : game.pending ? '查看眼前的抉择' : '空格：暂停或继续'} data-testid="play-toggle"><Icon name={expedition ? 'compass' : game.pending ? 'spark' : running && page === 'journey' ? 'pause' : 'play'} size={16}/>{expedition ? '回到机缘' : game.pending ? '抉择' : running && page === 'journey' ? '暂停' : '继续'}</button><select className="speed-select" aria-label="流转速度" value={profile.settings.speed} onChange={e => changeSetting('speed', Number(e.target.value))} data-testid="speed-select">{[1, 2, 4, 8].map(speed => <option key={speed} value={speed}>{speed}×</option>)}</select></div>
       <label className="auto-toggle" title="托管调整重心、处理普通机缘并尝试冲关；人生转折仍由你决定"><input type="checkbox" checked={automatic} disabled={Boolean(expedition)} onChange={e => { cancelDirector(); setAutomatic(e.target.checked); }} data-testid="auto-toggle"/><span className="switch-track"/><span>托管人生<small>{automatic ? '机缘代选 · 大事亲决' : '重要选择由你决定'}</small></span></label>
@@ -196,7 +201,6 @@ export default function App() {
       { id: 'management', page: 'inventory', label: '经营', icon: 'home' },
       { id: 'life', page: 'life', label: '此生', icon: 'book' },
     ] as const).map(item => <button key={item.id} className={mobileGroup === item.id ? 'active' : ''} aria-current={mobileGroup === item.id ? 'page' : undefined} onClick={() => navigate(item.page)} data-testid={`mobile-nav-${item.id}`}><Icon name={item.icon} size={22}/><span>{item.label}</span>{item.id === 'opportunities' && (expedition || game.pending) && <i/>}</button>)}</nav>}
-    {directorBusy && <div className="director-wait" role="status" data-testid="director-busy">正在接续这一段经历…</div>}
     {toast && <div className="toast" role="status"><Icon name="leaf" size={17}/>{toast}<button aria-label="关闭消息" onClick={() => setToast('')}><Icon name="close" size={14}/></button></div>}
     {confirmation ? <Modal title={confirmation.title} subtitle="请确认" onClose={() => setConfirmation(null)}><p className="modal-prose">{confirmation.text}</p><div className="modal-actions"><button className="button" onClick={() => setConfirmation(null)}>暂不更改</button><button className="button primary" onClick={confirmation.action} data-testid="confirm-action">{confirmation.accept}</button></div></Modal> : <>
     {modal === 'birth' && <Modal title="为这一生，落下第一笔" subtitle="一纸命书 · 由此入世" wide onClose={() => setModal(null)}><BirthForm onCreate={create} durationMinutes={profile.settings.durationMinutes} onDurationChange={value => changeSetting('durationMinutes', value)}/></Modal>}

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { createDirectorMiddleware, decideWithStartLux, DIRECTOR_ENDPOINT, DIRECTOR_MODEL, parseDirectorRequest, readDirectorAnswer, readDirectorKey } from '../server/director.ts';
-import { createDirectorClient, createDirectorTurn } from '../src/lib/directorClient.ts';
+import { createDirectorClient } from '../src/lib/directorClient.ts';
 import type { DirectorRequest } from '../src/game/types.ts';
 
 const request: DirectorRequest = {
@@ -118,23 +118,4 @@ test('client caches status and backs off failures while allowing later recovery'
   now += 16000; fail = false;
   assert.deepEqual(await client.decide(request, new AbortController().signal), { source: 'startlux', decision });
   assert.equal(calls, 3);
-});
-
-test('changing game, cancelling, replacing or completing a turn invalidates late replies', () => {
-  const turns = createDirectorTurn(), oldGame = { id: 'old-life' }, newGame = { id: 'new-life' };
-  const first = turns.begin(oldGame);
-  assert.equal(turns.valid(first, oldGame), true);
-  assert.equal(turns.valid(first, newGame), false);
-  const second = turns.begin(newGame);
-  assert.equal(first.controller.signal.aborted, true);
-  assert.equal(turns.valid(first, oldGame), false);
-  turns.finish(first);
-  assert.equal(turns.valid(second, newGame), true);
-  turns.finish(second);
-  assert.equal(turns.valid(second, newGame), false);
-  assert.equal(turns.pending(), false);
-  const third = turns.begin(newGame);
-  turns.cancel();
-  assert.equal(third.controller.signal.aborted, true);
-  assert.equal(turns.valid(third, newGame), false);
 });

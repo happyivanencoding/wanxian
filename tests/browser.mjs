@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from 'playwright';
-import { act, autoChoice, createGame, getEvent, requiresPlayerChoice, travelPrice } from '../src/game/engine.ts';
+import { act, autoChoice, createGame, getEvent, planDirectedAction, requiresPlayerChoice, travelPrice } from '../src/game/engine.ts';
 import { REALMS, SECTS, REGIONS } from '../src/game/data.ts';
 import { SAVE_KEY, newProfile, settleProfile, parseProfile } from '../src/game/storage.ts';
 import { preparationTarget } from '../src/game/progression.ts';
@@ -117,6 +117,24 @@ function fixture() {
   Object.assign(g.inventory, { herb: 35, jade: 8, breakpill: 2 });
   g.npcs.forEach(n => Object.assign(n, { age: 28, realm: 1, lifespan: 120, relation: 82 }));
   return settleProfile(newProfile(), g);
+}
+function directedYearFixture() {
+  const game = createGame({ ...config, name: '预取边界', gender: '随缘', seed: 'prefetch-browser' });
+  Object.assign(game, { age: 40, realm: 2, progress: 50, lifespan: 260, stones: 160, focus: 'adventure', pending: null, rng: 65537 });
+  game.seen['story-call-guardian'] = 20;
+  game.stats = { health: 70, mind: 60, insight: 55, foundation: 55, alchemy: 30, combat: 40, reputation: 35 };
+  game.npcs.forEach(n => Object.assign(n, { age: 40, realm: 2, lifespan: 260, relation: 65, progress: 0 }));
+  assert.equal(planDirectedAction(game, { type: 'advance' }).request?.kind, 'event');
+  const profile = settleProfile(newProfile(), game); profile.settings.speed = 8;
+  return profile;
+}
+async function primeNPC(p, id) {
+  const received = p.waitForResponse(reply => reply.url().endsWith('/api/director/decide') && reply.request().postDataJSON().actorId === id);
+  await p.getByTestId(`talk-${id}`).focus();
+  const reply = await received; await reply.finished();
+  // Let the client's JSON promise publish its ready value; no game action has occurred.
+  await p.waitForTimeout(40);
+  return reply.json();
 }
 function storyFixture() {
   const profile = fixture();
@@ -575,14 +593,17 @@ try {
   await directed.route('**/api/director/decide', async route => {
     directorCalls++;
     const request = route.request().postDataJSON();
-    if (directorMode === 'delayed') await new Promise(resolve => { releaseReply = resolve; });
-    const candidateId = directorMode === 'invalid' ? 'invented-reward' : request.candidates.find(item => item.id === 'medicine')?.id || request.candidates[0].id;
+    const mode = directorMode;
+    if (mode === 'delayed') await new Promise(resolve => { releaseReply = resolve; });
+    const candidateId = mode === 'invalid' ? 'invented-reward' : request.candidates.find(item => item.id === 'medicine')?.id || request.candidates[0].id;
     await route.fulfill({ json: { source: 'startlux', decision: { kind: request.kind, age: request.age, actorId: request.actorId, candidateId, source: 'startlux' } } }).catch(() => {});
   });
   const dp = await directed.newPage(); watch(dp); await dp.goto(baseURL);
-  await check('StartLux chooses a legal NPC response with real effects and persists the source', async () => {
+  await check('A ready background NPC response is applied once without changing the game before the click', async () => {
     const scenario = fixture();
     await install(dp, scenario); await navigate(dp, 'people');
+    await primeNPC(dp, 'peer-1');
+    assert.deepEqual((await state(dp)).game, scenario.game, 'Preparing a response cannot spend resources or commit fictional events.');
     await dp.getByTestId('talk-peer-1').click();
     const after = (await waitState(dp, p => p.game.directorRecords?.at(-1)?.source === 'startlux')).game;
     assert.equal(after.directorRecords.at(-1).candidateId, 'medicine');
@@ -595,7 +616,7 @@ try {
   await check('Invalid online decisions and a disconnected browser both complete through local rules', async () => {
     directorMode = 'invalid';
     const scenario = fixture(), expected = act(scenario.game, { type: 'npc', id: 'peer-1', interaction: 'talk' }).game;
-    await install(dp, scenario); await navigate(dp, 'people'); await dp.getByTestId('talk-peer-1').click();
+    await install(dp, scenario); await navigate(dp, 'people'); await primeNPC(dp, 'peer-1'); await dp.getByTestId('talk-peer-1').click();
     await waitState(dp, p => p.game.npcs[1].lastInteraction === scenario.game.age);
     assert.deepEqual((await state(dp)).game, expected);
     await install(dp, scenario); await navigate(dp, 'people');
@@ -605,30 +626,75 @@ try {
     assert.deepEqual((await state(dp)).game, expected); assert.equal(directorCalls, callsBefore);
     await directed.setOffline(false);
   });
-  await check('A late online reply cannot spend an action or alter a newly imported life', async () => {
+  await check('A pending NPC request never delays the click and its late reply cannot alter a new life', async () => {
     directorMode = 'delayed'; releaseReply = undefined;
-    await install(dp); await navigate(dp, 'people'); await dp.getByTestId('talk-peer-1').click();
+    const scenario = fixture(), expected = act(scenario.game, { type: 'npc', id: 'peer-1', interaction: 'talk' }).game;
+    await install(dp, scenario); await navigate(dp, 'people'); await dp.getByTestId('talk-peer-1').focus();
     for (let i = 0; i < 50 && !releaseReply; i++) await dp.waitForTimeout(20);
     assert.equal(typeof releaseReply, 'function');
+    await dp.getByTestId('talk-peer-1').click();
+    await waitState(dp, p => p.game.npcs[1].lastInteraction === scenario.game.age);
+    assert.deepEqual((await state(dp)).game, expected, 'Local settlement must finish while the network reply is still held.');
+    assert.equal(await dp.getByTestId('director-busy').count(), 0);
     const replacement = fixture(); replacement.game.name = '新载入的人生';
     await install(dp, replacement); releaseReply(); await dp.waitForTimeout(100);
     assert.deepEqual((await state(dp)).game, replacement.game);
+  });
+  await dp.clock.install(); await dp.clock.pauseAt(new Date());
+  await check('At 8x speed an unfinished background event never stops the year clock or rewrites a settled event', async () => {
+    directorMode = 'delayed'; releaseReply = undefined;
+    const scenario = directedYearFixture(), expected = planDirectedAction(scenario.game, { type: 'advance' }).result.game;
+    await install(dp, scenario);
+    await dp.getByTestId('play-toggle').click();
+    for (let i = 0; i < 50 && !releaseReply; i++) await dp.waitForTimeout(20);
+    assert.equal(typeof releaseReply, 'function', 'The event request should start before the year has elapsed.');
+    assert.equal((await state(dp)).game.age, scenario.game.age);
+    assert.equal(await dp.getByTestId('director-busy').count(), 0);
+    await dp.clock.runFor(400);
+    await waitState(dp, p => p.game.age === 41);
+    assert.deepEqual((await state(dp)).game, expected, 'The normal annual deadline must immediately settle the local result.');
+    releaseReply(); await dp.waitForTimeout(100);
+    assert.deepEqual((await state(dp)).game, expected, 'A late arrangement must not replace an event the player already sees.');
+    results.push({ name: 'Nonblocking year deadline evidence', speed: 8, advancedClockMilliseconds: 400, networkReplyHeldUntilAfterSettlement: true });
+  });
+  await check('A ready next-year arrangement is invisible until the normal year boundary and is consumed exactly once', async () => {
+    directorMode = 'valid';
+    const scenario = directedYearFixture(), plan = planDirectedAction(scenario.game, { type: 'advance' });
+    await install(dp, scenario);
+    const received = dp.waitForResponse(reply => reply.url().endsWith('/api/director/decide'));
+    await dp.getByTestId('play-toggle').click();
+    const reply = await received; await reply.finished(); await dp.waitForTimeout(40);
+    assert.deepEqual((await state(dp)).game, scenario.game);
+    await dp.clock.runFor(400);
+    const after = (await waitState(dp, p => p.game.age === 41)).game;
+    assert.equal(after.directorRecords.at(-1).source, 'startlux');
+    assert.equal(after.pending, plan.request.candidates[0].id);
+    assert.equal(after.directorRecords.length, 1);
+    const callsAtSettlement = directorCalls;
+    await dp.clock.runFor(800);
+    assert.deepEqual((await state(dp)).game, after);
+    assert.equal(directorCalls, callsAtSettlement, 'Player decisions pause as before and do not ask for another future arrangement.');
   });
   await directed.close();
 
   if (process.env.STARTLUX_LIVE === '1') {
     const live = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true });
     const lp = await live.newPage(); watch(lp); await lp.goto(baseURL);
-    await check('Live configured StartLux proxy selects and commits a real NPC response', async () => {
+    await check('Live StartLux prepares in the background and a later click synchronously consumes the result', async () => {
       const scenario = fixture(); scenario.game.stats.health = 45;
       await install(lp, scenario); await navigate(lp, 'people');
       const began = performance.now();
+      const prepared = await primeNPC(lp, 'peer-1');
+      const backgroundMilliseconds = Math.round(performance.now() - began);
+      assert.equal(prepared.source, 'startlux');
+      assert.deepEqual((await state(lp)).game, scenario.game);
+      const clicked = performance.now();
       await lp.getByTestId('talk-peer-1').click();
       await lp.waitForFunction(key => JSON.parse(localStorage.getItem(key)).game.directorRecords?.length > 0, SAVE_KEY, { timeout: 6500 });
       const after = (await state(lp)).game;
       assert.equal(after.directorRecords.at(-1).source, 'startlux');
       assert.equal(after.actionsLeft, scenario.game.actionsLeft - 1);
-      results.push({ name: 'Live StartLux response evidence', record: after.directorRecords.at(-1), milliseconds: Math.round(performance.now() - began), model: 'startlux-decision-27b-autothink' });
+      results.push({ name: 'Live StartLux response evidence', record: after.directorRecords.at(-1), backgroundMilliseconds, clickMilliseconds: Math.round(performance.now() - clicked), model: 'startlux-decision-27b-autothink' });
       await lp.getByTestId('open-settings').click(); await capture(lp, '14-live-startlux');
     });
     await live.close();

@@ -40,6 +40,7 @@ export function createDirectorClient(fetcher: Fetcher = fetch, online = () => ty
     if (!available.configured || signal.aborted) return { source: 'local', reason: 'unavailable' };
     try {
       const data = await requestJSON(fetcher, '/api/director/decide', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request) }, 3400, signal);
+      if (signal.aborted) return { source: 'local', reason: 'unavailable' };
       if (record(data) && data.source === 'startlux' && record(data.decision)) {
         const decision = data.decision;
         if (decision.source === 'startlux' && decision.kind === request.kind && decision.age === request.age && decision.actorId === request.actorId && request.candidates.some(item => item.id === decision.candidateId)) {
@@ -55,14 +56,4 @@ export function createDirectorClient(fetcher: Fetcher = fetch, online = () => ty
     }
   }
   return { getStatus, decide };
-}
-
-/** One outstanding action. Leaving its view or changing the active game invalidates its reply. */
-export function createDirectorTurn() {
-  let current: { game: object; controller: AbortController } | undefined;
-  function cancel() { current?.controller.abort(); current = undefined; }
-  function begin(game: object) { cancel(); const ticket = { game, controller: new AbortController() }; current = ticket; return ticket; }
-  function valid(ticket: ReturnType<typeof begin>, game: object | null | undefined) { return current === ticket && ticket.game === game && !ticket.controller.signal.aborted; }
-  function finish(ticket: ReturnType<typeof begin>) { if (current === ticket) current = undefined; }
-  return { begin, valid, finish, cancel, pending: () => Boolean(current) };
 }

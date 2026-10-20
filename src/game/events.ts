@@ -1,5 +1,6 @@
 import type { Choice, Effect, EventDef, Focus, LogKind } from './types.ts';
 import { REGIONS } from './data.ts';
+import { STORY_EVENTS } from './story.ts';
 const c = (label: string, hint: string, effect: Effect, extra: Partial<Choice> = {}): Choice => ({ label, hint, effect, autoScore: 5, ...extra });
 
 const stories: EventDef[] = [
@@ -136,12 +137,18 @@ const daily: { id: string; title: string; text: string; focus: Focus; category: 
   { id: 'letter', title: '远山来信', text: '一只纸鹤停在窗前。信里没有求援，只是说远方的梅花又开了。', focus: 'social', category: 'relationship', a: c('认真回一封信', '情谊 +8 · 道心 +5', { npcRelation: 8, stats: { mind: 5 } }), b: c('寄去一份小礼物', '灵石 −12 · 情谊 +13', { npcRelation: 13 }, { cost: 12 }) },
   { id: 'chess', title: '烂柯一局', text: '树下棋局尚未结束，你们已经争论了许久。输赢之外，棋盘似乎也在讲述进退。', focus: 'social', category: 'cultivation', a: c('静看全局', '悟性 +7 · 情谊 +3', { stats: { insight: 7 }, npcRelation: 3 }), b: c('认输，给大家添茶', '道心 +9 · 情谊 +6', { stats: { mind: 9 }, npcRelation: 6 }) },
 ];
-const recurring: EventDef[] = daily.map(({ a, b, ...e }) => ({ ...e, minAge: 16, cooldown: 14, weight: 1.3, choices: [a, b] }));
+const recurring: EventDef[] = daily.map(({ a, b, ...e }) => ({ ...e, kind: 'routine', minAge: 16, cooldown: 14, weight: 1.3, choices: [a, b] }));
 const landmarks: EventDef[] = REGIONS.flatMap(region => [
   { id: `${region.id}-ruin`, title: `${region.name} · 无名碑`, text: `${region.name}的小路尽头有一块无名碑。风霜磨去了名字，几道残存的刻痕却暗合周天之理。`, category: 'encounter' as const, region: region.id, minAge: 16, once: true, choices: [c('拓下碑文，留待参悟', '悟性 +6 · 修为 +18', { stats: { insight: 6 }, progress: 18 }), c('修整碑旁杂草', '道心 +8 · 根基 +4', { stats: { mind: 8, foundation: 4 } })] },
   { id: `${region.id}-fair`, title: `${region.name} · 小集`, text: `赶上${region.name}的季节小集。商贩、修士与凡人在同一条街道上讨价还价。`, category: 'economy' as const, region: region.id, minAge: 16, cooldown: 22, choices: [c('淘一包本地药材', '灵石 −15 · 灵草 +5', { item: 'herb', amount: 5 }, { cost: 15 }), c('帮掌柜鉴别货物', '需悟性 35 · 灵石 +28', { stones: 28 }, { requiresStat: ['insight', 35] }), c('在人群里走走', '道心 +6 · 声望 +2', { stats: { mind: 6, reputation: 2 } })] },
   { id: `${region.id}-night`, title: `${region.name} · 不眠之夜`, text: `暂居${region.name}的这一夜，远处有人抚琴。曲调并不熟悉，却让你想起一路走来的山川与故人。`, category: 'life' as const, region: region.id, minAge: 20, cooldown: 28, choices: [c('听完这一曲', '道心 +9 · 悟性 +3', { stats: { mind: 9, insight: 3 } }), c('以笛声相和', '声望 +5 · 情谊 +6', { stats: { reputation: 5 }, npcRelation: 6 })] },
 ]);
-export const EVENTS: EventDef[] = [...stories, ...recurring, ...landmarks, ...turningPoints];
+export const EVENTS: EventDef[] = [
+  ...stories.map(e => ({ ...e, kind: (['departure', 'vow', 'forbidden', 'disciple', 'sect-war', 'forbidden-echo'].includes(e.id) ? 'turning' : 'opportunity') as EventDef['kind'] })),
+  ...recurring,
+  ...landmarks.map(e => ({ ...e, kind: 'routine' as const })),
+  ...turningPoints.map(e => ({ ...e, kind: 'turning' as const })),
+  ...STORY_EVENTS,
+];
 export const EVENT_MAP = Object.fromEntries(EVENTS.map(event => [event.id, event]));
 export const CHILD_EVENTS = new Map([[2, 'child-pebble'], [6, 'child-root'], [12, 'child-letter'], [16, 'departure'], [18, 'vow']]);

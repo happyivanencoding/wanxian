@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import './YearClock.css';
 
-export const YEARS_PER_LIFE_ESTIMATE = 450;
+export const YEARS_PER_LIFE_ESTIMATE = 800;
 export const secondsPerYear = (minutes: 30 | 60, speed: number) => minutes * 60 / YEARS_PER_LIFE_ESTIMATE / speed;
 
 export default function YearClock({ active, age, lifeId, durationMinutes, speed, onYear }: {

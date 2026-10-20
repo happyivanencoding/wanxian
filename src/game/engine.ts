@@ -1,6 +1,7 @@
 import { ACHIEVEMENTS, ERAS, FOCUSES, GIVEN_NAMES, HOMES, ITEMS, ORIGINS, REALMS, RECIPES, REGIONS, ROUTES, SECTS, SECT_RANKS, SURNAMES, WORLD_PHASES } from './data.ts';
 import { CHILD_EVENTS, EVENTS, EVENT_MAP } from './events.ts';
 import { fateInfluence } from './fate.ts';
+import { activateStoryPath, getStoryEvent, nextStoryEvent, recordStoryChoice, storyAnnualEffects, storyLegacy, storyTravelMultiplier } from './story.ts';
 import type { Action, ActionResult, BirthConfig, Choice, Effect, EventDef, Game, LifeRecord, LogKind, NPC, Stat } from './types.ts';
 
 export const clamp = (value: number, min = 0, max = 100) => Math.min(max, Math.max(min, value));
@@ -26,6 +27,7 @@ export const currentRegion = (g: Pick<Game, 'region'>) => REGIONS.find(r => r.id
 export const currentEra = (g: Pick<Game, 'era'>) => ERAS.find(e => e.id === g.era)!;
 export const itemPrice = (g: Game, id: string) => Math.ceil(ITEMS.find(i => i.id === id)!.price * currentEra(g).price);
 export const homePrice = (g: Game, id: string) => Math.ceil(HOMES.find(h => h.id === id)!.cost * Math.pow(1.85, g.home[id] || 0));
+export const travelPrice = (g: Game, id: string) => Math.ceil(REGIONS.find(region => region.id === id)!.cost * storyTravelMultiplier(g));
 export const craftChance = (g: Game) => clamp(0.55 + g.stats.alchemy * 0.003 + (g.home.furnace || 0) * 0.08 + (g.route === 'alchemy' ? 0.08 : 0), 0.1, 0.98);
 export function trainingFactors(g: Game) {
   return {
@@ -73,9 +75,10 @@ function gain(g: Game, effect: Effect = {}) {
   if (effect.contribution && g.sect) g.contribution = Math.max(0, g.contribution + effect.contribution);
   if (effect.item) g.inventory[effect.item] = (g.inventory[effect.item] || 0) + (effect.amount ?? 1);
   if (effect.flag && !g.flags.includes(effect.flag)) g.flags.push(effect.flag);
+  if (effect.storyPath) activateStoryPath(g, effect.storyPath);
   if (effect.rootBoost) g.aptitude = clamp(g.aptitude + effect.rootBoost, 15, 100);
   if (effect.npcRelation) {
-    const friend = g.npcs.find(npc => npc.alive && npc.role !== 'rival');
+    const friend = effect.npcId ? g.npcs.find(npc => npc.id === effect.npcId && npc.alive) : g.npcs.find(npc => npc.alive && npc.role !== 'rival');
     if (friend) friend.relation = round(clamp(friend.relation + effect.npcRelation));
   }
 }
@@ -142,35 +145,83 @@ export function createGame(config: BirthConfig): Game {
 }
 
 export function eventEligible(g: Game, e: EventDef): boolean {
+  if (['wounded-friend', 'tea', 'letter', 'chess'].includes(e.id) && !g.npcs.some(npc => npc.alive)) return false;
   return g.alive && g.age >= (e.minAge ?? 0) && g.age <= (e.maxAge ?? 9999) && g.realm >= (e.minRealm ?? 0) && g.realm <= (e.maxRealm ?? 6)
     && (!e.focus || e.focus === g.focus) && (!e.region || e.region === g.region) && (!e.flag || g.flags.includes(e.flag)) && (!e.notFlag || !g.flags.includes(e.notFlag))
     && (!e.sect || Boolean(g.sect)) && !(e.once && g.seen[e.id] !== undefined) && (g.seen[e.id] === undefined || g.age - g.seen[e.id] >= (e.cooldown ?? 6));
 }
-function openEvent(g: Game, id: string) { g.pending = id; g.seen[id] = g.age; }
+export function getEvent(g: Game, id: string | null = g.pending): EventDef | undefined {
+  if (!id) return;
+  const story = getStoryEvent(g, id);
+  if (story) return story;
+  const original = EVENT_MAP[id];
+  if (!original) return;
+  if (id === 'wounded-friend') {
+    const saved = g.flags.find(flag => flag.startsWith('wounded-person:'))?.slice('wounded-person:'.length);
+    const person = saved ? g.npcs.find(npc => npc.id === saved) : g.npcs.find(npc => npc.alive && npc.role !== 'rival') ?? g.npcs.find(npc => npc.alive);
+    if (person) return { ...original,
+      text: person.alive ? `${person.name}重伤而归。门外放着一把断剑，屋内迟迟没有灯火。你们生于同年，如今这段相识来到了需要回应的时候。` : `${person.name}${person.realm === 6 ? '已飞升离界' : '已经离世'}。旧日托存的病中手记辗转来到你手里，记着那段未能相见的日子。`,
+      choices: original.choices.map((choice, index) => ({ ...choice,
+        ...(!person.alive ? { label: ['替旧日的救治留下资助', '把旧医方整理给后来者', '收好手记，暂不重读'][index], hint: choice.hint.replace(/情谊 \+\d+ · ?/, '') } : {}),
+        effect: { ...choice.effect, npcId: person.id },
+        ...(choice.delayed ? { delayed: { ...choice.delayed, text: `${person.name}预先托存的一柄秋水剑辗转送到你手里。与此人相连的那段往事，留在剑鞘内的字迹中。`, effect: { ...choice.delayed.effect, npcId: person.id } } } : {}),
+      })),
+    };
+  }
+  return original;
+}
+export function requiresPlayerChoice(g: Game): boolean {
+  return Boolean(g.pending && getEvent(g)?.kind === 'turning');
+}
+function openEvent(g: Game, id: string) {
+  if (id === 'wounded-friend' && !g.flags.some(flag => flag.startsWith('wounded-person:'))) {
+    const person = g.npcs.find(npc => npc.alive && npc.role !== 'rival') ?? g.npcs.find(npc => npc.alive);
+    if (person) g.flags.push(`wounded-person:${person.id}`);
+  }
+  g.pending = id; g.seen[id] = g.age;
+}
 function selectEvent(g: Game) {
-  const fateStage = g.age >= 28 && g.seen['fate-first'] === undefined ? 'fate-first'
-    : g.age >= 60 && g.flags.includes('fate-guardian') && g.seen['fate-mid-guardian'] === undefined ? 'fate-mid-guardian'
-    : g.age >= 60 && g.flags.includes('fate-lone') && g.seen['fate-mid-lone'] === undefined ? 'fate-mid-lone'
-    : g.age >= 60 && g.flags.includes('fate-contract') && g.seen['fate-mid-contract'] === undefined ? 'fate-mid-contract'
-    : g.age >= 140 && g.flags.some(flag => ['fate-guardian', 'fate-lone', 'fate-contract'].includes(flag)) && g.seen['fate-final'] === undefined ? 'fate-final'
-    : null;
-  if (fateStage) { openEvent(g, fateStage); return; }
   const forced = CHILD_EVENTS.get(g.age);
   if (forced && g.seen[forced] === undefined) { openEvent(g, forced); return; }
-  if (g.age < 16 || random(g) > (g.focus === 'adventure' ? 0.52 : 0.34)) return;
-  const events = EVENTS.filter(e => (e.weight ?? 1) > 0 && eventEligible(g, e));
-  if (!events.length) return;
-  let ticket = random(g) * events.reduce((sum, event) => sum + (event.weight ?? 1), 0);
-  for (const event of events) { ticket -= event.weight ?? 1; if (ticket <= 0) { openEvent(g, event.id); return; } }
+  if (g.age < 16) return;
+  const seenEntries = Object.entries(g.seen);
+  const lastManual = Math.max(0, ...seenEntries.filter(([id]) => EVENT_MAP[id]?.kind !== 'routine').map(([, age]) => age));
+  const lastRoutine = Math.max(0, ...seenEntries.filter(([id]) => EVENT_MAP[id]?.kind === 'routine').map(([, age]) => age));
+  const story = nextStoryEvent(g, random(g));
+  if (story && (getStoryEvent(g, story)?.kind === 'routine' || g.age - lastManual >= 6)) {
+    openEvent(g, story);
+    if (getEvent(g)?.kind === 'routine') resolveChoice(g, 0, true);
+    return;
+  }
+  // Previously seen opportunities do not return as recurring paperwork. Old IDs
+  // remain resolvable for saved pending events, but new lives use the causal arcs.
+  const opportunities = g.age - lastManual >= 12 ? EVENTS.filter(e => e.kind !== 'routine' && !e.id.startsWith('story-') && !e.id.startsWith('fate-') && g.seen[e.id] === undefined && (e.weight ?? 1) > 0 && eventEligible(g, e)) : [];
+  const chooseWeighted = (events: EventDef[]) => {
+    let ticket = random(g) * events.reduce((sum, e) => sum + (e.weight ?? 1), 0);
+    return events.find(e => (ticket -= e.weight ?? 1) <= 0) ?? events.at(-1);
+  };
+  if (opportunities.length && random(g) < (g.focus === 'adventure' ? 0.2 : 0.14)) {
+    const selected = chooseWeighted(opportunities);
+    if (selected) { openEvent(g, selected.id); return; }
+  }
+  if (g.age - lastRoutine < 8 || random(g) >= 0.2) return;
+  const routines = EVENTS.filter(e => e.kind === 'routine' && (e.weight ?? 1) > 0 && eventEligible(g, e));
+  const selected = routines.length ? chooseWeighted(routines) : undefined;
+  if (selected) {
+    openEvent(g, selected.id);
+    const index = autoChoice(g, 'safe');
+    if (choiceUnavailable(g, getEvent(g)!.choices[index])) { g.pending = null; return; }
+    resolveChoice(g, index, true);
+  }
 }
 export function choiceUnavailable(g: Game, choice: Choice): string | null {
   if ((choice.cost ?? 0) > g.stones) return `需要 ${choice.cost} 灵石`;
   if (choice.requiresStat && g.stats[choice.requiresStat[0]] < choice.requiresStat[1]) return `未达到 ${choice.requiresStat[1]} 点属性门槛`;
   return null;
 }
-function resolveChoice(g: Game, index: number): string | null {
+function resolveChoice(g: Game, index: number, automatic = false): string | null {
   if (!g.pending) return '目前没有等待决定的事件';
-  const event = EVENT_MAP[g.pending];
+  const event = getEvent(g);
   const choice = event?.choices[index];
   if (!choice) return '无效的选项';
   const unavailable = choiceUnavailable(g, choice);
@@ -178,8 +229,9 @@ function resolveChoice(g: Game, index: number): string | null {
   if (choice.cost) g.stones -= choice.cost;
   const success = choice.chance === undefined || random(g) < choice.chance;
   gain(g, success ? choice.effect : choice.failure);
-  g.choices++;
-  log(g, event.title, `${choice.label}。${success ? choice.successText || choice.hint : choice.failureText || '未能如愿，但这段经历仍留在你的生命里。'}`, event.category, true);
+  if (success) recordStoryChoice(g, event, choice);
+  if (!automatic) g.choices++;
+  log(g, event.title, `${event.cause ? event.cause + ' ' : ''}${automatic ? '岁月中自然发生：' : ''}${choice.label}。${success ? choice.successText || choice.hint : choice.failureText || '未能如愿，但这段经历仍留在你的生命里。'}`, event.category, !automatic || event.id.startsWith('story-'));
   if (success && choice.delayed) { const { after, ...later } = choice.delayed; g.delayed.push({ at: g.age + after, ...later }); }
   g.pending = null;
   checkLife(g); snapshot(g);
@@ -222,7 +274,6 @@ function advanceOne(g: Game) {
     gain(g, { stats: { health: 1, insight: 0.8, foundation: 0.5 } });
     if (g.age === 1) log(g, '最初的脚步', '你跌跌撞撞地走过门槛，家中响起一阵笑声。');
   } else {
-    const beforeProgress = g.progress, beforeStones = g.stones;
     const rate = trainingRate(g);
     const r = g.realm;
     if (g.age < 16) gain(g, { progress: rate * 0.22, stones: 1, stats: { insight: 0.6, foundation: 0.6, combat: 0.3 } });
@@ -255,7 +306,7 @@ function advanceOne(g: Game) {
       g.stones = Math.max(0, g.stones - upkeep);
       if (shortage) {
         gain(g, { stats: { health: -Math.min(5, 2 + shortage / 25), mind: -Math.min(5, 1 + shortage / 20) } });
-        log(g, '修行资用短缺', `日常供养需要${upkeep}灵石，仍缺${shortage}灵石；体魄与道心受到影响。`, 'economy');
+        if (g.age % 5 === 0 || !g.logs.some(entry => entry.title === '修行资用短缺')) log(g, '修行资用短缺', `今年日常供养需要${upkeep}灵石，仍缺${shortage}灵石；缺资年份持续损耗体魄与道心。`, 'economy');
       }
       if (g.sect) {
         gain(g, { stones: 6 + r * 5 + g.sectRank * 8, contribution: 1 });
@@ -265,6 +316,7 @@ function advanceOne(g: Game) {
       }
       if (g.home.garden) gain(g, { item: 'herb', amount: g.home.garden + (g.region === 'river' ? 1 : 0) + (worldPhase(g).name === '百草丰年' ? 1 : 0) });
       if (g.home.library) gain(g, { stats: { insight: g.home.library * (g.focus === 'study' ? 0.8 : 0.4) } });
+      for (const effect of storyAnnualEffects(g)) gain(g, effect);
       // High stats need continued attention; different choices fund or strain a way of life.
       gain(g, { stats: {
         health: -0.65 - r * 0.10 - (g.age > g.lifespan * 0.8 ? 0.8 : 0) - fate.healthDrain,
@@ -276,8 +328,7 @@ function advanceOne(g: Game) {
         combat: -Math.max(0, g.stats.combat - 35) * 0.034,
       } });
     }
-    const deltaP = round(g.progress - beforeProgress), deltaS = g.stones - beforeStones;
-    log(g, g.age < 16 ? '少年渐长' : FOCUSES.find(f => f.id === g.focus)!.name, `${g.age < 16 ? '读书、练功，在平凡的日子里慢慢长大。' : pick(g, ['山风吹过，又是一年。', '一日一功，积微成著。', '旧岁渐远，所行皆是来路。', '晨钟暮鼓，光阴在指间流过。'])}修为 ${deltaP >= 0 ? '+' : ''}${deltaP}，灵石 ${deltaS >= 0 ? '+' : ''}${deltaS}。`, g.focus === 'work' || g.focus === 'alchemy' ? 'economy' : 'cultivation');
+    if (g.age % 5 === 0) log(g, g.age < 16 ? '少年渐长' : '岁月小记', `${g.age < 16 ? '读书、练功，渐渐长大。' : `日常修行按安排继续，眼下以${FOCUSES.find(f => f.id === g.focus)!.name}为重心。`}如今修为${g.progress}，积蓄${g.stones}灵石，体魄${g.stats.health}，道心${g.stats.mind}。`, g.focus === 'work' || g.focus === 'alchemy' ? 'economy' : 'cultivation');
   }
   checkLife(g);
   if (g.alive) selectEvent(g);
@@ -375,10 +426,11 @@ function perform(g: Game, action: Action): string | null {
     if (!region) return '未知的目的地';
     if (region.id === g.region) return '你已在此处';
     if (g.realm < region.minRealm) return `抵达此地需要${REALMS[region.minRealm].name}境`;
-    if (g.stones < region.cost) return '路费不足';
-    g.stones -= region.cost; g.region = region.id;
+    const cost = travelPrice(g, region.id);
+    if (g.stones < cost) return '路费不足';
+    g.stones -= cost; g.region = region.id;
     if (!g.visited.includes(region.id)) g.visited.push(region.id);
-    log(g, '远行 · ' + region.name, `支付${region.cost}灵石路费。${region.description}`, 'world', true);
+    log(g, '远行 · ' + region.name, `支付${cost}灵石路费。${storyTravelMultiplier(g) < 1 ? '沿途驿站接应，路费减少。' : ''}${region.description}`, 'world', true);
   } else if (action.type === 'join') {
     const sect = SECTS.find(s => s.id === action.id);
     if (!sect) return '没有这个宗门';
@@ -447,7 +499,7 @@ export function act(source: Game, action: Action): ActionResult {
   return error ? { game: source, error } : { game };
 }
 export function autoChoice(g: Game, policy: 'safe' | 'bold' | 'random'): number {
-  const event = g.pending ? EVENT_MAP[g.pending] : undefined;
+  const event = getEvent(g);
   if (!event) return 0;
   const available = event.choices.map((choice, index) => ({ choice, index })).filter(({ choice }) => !choiceUnavailable(g, choice));
   if (!available.length) return 0;
@@ -457,7 +509,7 @@ export function autoChoice(g: Game, policy: 'safe' | 'bold' | 'random'): number 
 }
 function autoMutate(g: Game, policy: 'safe' | 'bold' | 'random') {
   if (!g.alive) return;
-  if (g.pending) { resolveChoice(g, autoChoice(g, policy)); return; }
+  if (g.pending) { if (!requiresPlayerChoice(g)) resolveChoice(g, autoChoice(g, policy)); return; }
   if (g.age < 16) { advanceOne(g); return; }
   if (g.stats.health < (policy === 'bold' ? 40 : 60) || g.stats.mind < 42) g.focus = 'rest';
   else if (g.progress >= REALMS[g.realm].need && g.age >= g.cooldownUntil && g.stones >= REALMS[g.realm].cost && g.actionsLeft > 0) { breakthrough(g, g.inventory.breakpill > 0); return; }
@@ -471,7 +523,11 @@ export function autoStep(source: Game, policy: 'safe' | 'bold' | 'random'): Acti
 }
 export function simulateLife(config: BirthConfig, policy: 'safe' | 'bold' | 'random' = 'safe'): Game {
   const game = createGame(config);
-  for (let step = 0; step < 15000 && game.alive; step++) autoMutate(game, policy);
+  for (let step = 0; step < 15000 && game.alive; step++) {
+    // Test/research helper explicitly supplies choices; player-facing autoStep never does.
+    if (requiresPlayerChoice(game)) resolveChoice(game, autoChoice(game, policy));
+    else autoMutate(game, policy);
+  }
   return game;
 }
 export function earnedAchievements(g: Game): string[] {
@@ -494,7 +550,7 @@ export function lifeLegacy(g: Game) {
     : g.stats.alchemy >= 70 ? '药香未散，你的手艺仍在坊间流传。'
     : g.realm >= 4 ? '你的传说，留在那些仰望仙途的人口中。'
     : '未必人人知晓，但这一生的每一步都曾真实走过。';
-  return [fate, personal].filter(Boolean).join(' ');
+  return [storyLegacy(g) || fate, personal].filter(Boolean).join(' ');
 }
 export function archiveLife(g: Game, date = new Date().toISOString()): LifeRecord {
   return { id: g.id, name: g.name, age: g.age, realm: g.realm, origin: g.origin, route: g.route, ending: g.ending ?? '未结卷', endingText: g.endingText, totalStones: g.totalStones, choices: g.choices, legacy: lifeLegacy(g), logs: g.logs.filter(l => l.important || l.starred).slice(-500), date };

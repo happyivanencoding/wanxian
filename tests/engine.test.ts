@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { act, archiveLife, autoChoice, breakthroughChance, breakthroughFactors, createGame, currentEra, currentRegion, trainingFactors, trainingRate, worldPhase, eventEligible, homePrice, itemPrice, simulateLife } from '../src/game/engine.ts';
+import { act, archiveLife, autoChoice, autoStep, biography, breakthroughChance, breakthroughFactors, createGame, currentEra, currentRegion, getEvent, requiresPlayerChoice, trainingFactors, trainingRate, travelPrice, worldPhase, eventEligible, homePrice, itemPrice, simulateLife } from '../src/game/engine.ts';
 import { EVENTS, EVENT_MAP } from '../src/game/events.ts';
 import { fateInfluence } from '../src/game/fate.ts';
+import { storyView } from '../src/game/story.ts';
 import { REALMS } from '../src/game/data.ts';
 import { BACKUP_KEY, SAVE_KEY, loadProfile, newProfile, parseProfile, persistProfile, settleProfile, validGame } from '../src/game/storage.ts';
 import type { BirthConfig, Game } from '../src/game/types.ts';
@@ -13,6 +14,17 @@ const prepared = () => {
 };
 const update = (g: Game, a: Parameters<typeof act>[1]) => { const r = act(g, a); assert.equal(r.error, undefined); return r.game; };
 function until(g: Game, target: number) { for (let i = 0; i < 1000 && g.age < target && g.alive; i++) g = g.pending ? update(g, { type: 'choose', index: autoChoice(g, 'safe') }) : update(g, { type: 'advance' }); return g; }
+function untilStory(g: Game, matches: (id: string) => boolean) {
+  for (let step = 0; step < 500 && g.alive; step++) {
+    if (g.pending && matches(g.pending)) return g;
+    g = g.pending ? update(g, { type: 'choose', index: autoChoice(g, 'safe') }) : update(g, { type: 'advance' });
+  }
+  assert.fail(`The story did not arrive before age ${g.age}: ${g.ending ?? g.pending}`);
+}
+function storyOpening() {
+  const g = prepared(); g.age = 21; g.focus = 'rest'; g.stones = 10000;
+  return untilStory(g, id => id.startsWith('story-call-'));
+}
 
 test('identical seed and configuration reproduce an identical life', () => {
   assert.deepEqual(createGame(config), createGame(config));
@@ -37,7 +49,7 @@ test('fast start simulates rather than deletes childhood', () => {
 test('event ids are unique; every event has at least one zero-cost fallback', () => {
   assert.equal(new Set(EVENTS.map(e => e.id)).size, EVENTS.length);
   assert.ok(EVENTS.length >= 60);
-  for (const event of EVENTS) assert.ok(event.choices.some(c => !c.cost && !c.requiresStat), event.id);
+  for (const event of EVENTS) assert.ok(getEvent(prepared(), event.id)?.choices.some(c => !c.cost && !c.requiresStat), event.id);
 });
 test('event selection honors region, focus, flags, age and one-shot history', () => {
   const g = prepared(); const e = EVENT_MAP.cave;
@@ -95,6 +107,19 @@ test('region travel changes environment and cannot skip realm gates', () => {
   let g = prepared(); assert.ok(act(g, { type: 'travel', id: 'central' }).error);
   g = update(g, { type: 'travel', id: 'river' }); assert.equal(g.region, 'river'); assert.ok(g.visited.includes('river')); assert.equal(g.stones, 975);
 });
+test('story waystations reduce the charged travel price and remain usable when only the discounted fare is affordable', () => {
+  const normal = prepared();
+  const linked = structuredClone(normal); linked.flags.push('story-active-contract', 'fate-contract', 'story-waystations');
+  const fare = travelPrice(linked, 'river');
+  assert.equal(fare, Math.ceil(travelPrice(normal, 'river') * 0.7));
+  assert.ok(fare < travelPrice(normal, 'river'));
+  linked.stones = fare;
+  const travelled = update(linked, { type: 'travel', id: 'river' });
+  assert.equal(travelled.stones, 0); assert.equal(travelled.region, 'river');
+  const changed = structuredClone(linked);
+  changed.flags = changed.flags.filter(flag => flag !== 'story-active-contract'); changed.flags.push('story-active-guardian');
+  assert.equal(travelPrice(changed, 'river'), travelPrice(normal, 'river'), 'An inactive former route must not keep its operating discount.');
+});
 test('sect membership, tasks and rank promotion spend the correct contributions', () => {
   let g = prepared(); g = update(g, { type: 'join', id: 'qinglan' }); assert.equal(g.sect, 'qinglan'); assert.equal(g.stones, 970);
   g = update(g, { type: 'sect', job: 'mission' }); assert.equal(g.contribution, 22); assert.equal(g.stats.health, 84);
@@ -149,14 +174,22 @@ test('not seeking breakthroughs can end naturally while a purposeful life can su
 });
 test('2,000 seeded complete lives across origins, eras and routes have finite state and terminate', { timeout: 180000 }, () => {
   const endings: Record<string, number> = {}, realms: Record<string, number> = {}; let minAge = 10000, maxAge = 0;
+  const ages: number[] = [], decisions: number[] = [], storyDecisions: number[] = [];
   for (let i = 0; i < 2000; i++) {
     const g = simulateLife({ ...config, seed: `batch-${i}`, era: ['peace', 'chaos', 'renewal'][i % 3], route: ['balanced', 'sword', 'alchemy', 'body'][i % 4], mode: i % 3 ? 'seeker' : 'all', fastStart: true }, i % 5 === 0 ? 'bold' : 'safe');
     assert.equal(g.alive, false, `seed ${i} did not terminate`); assert.ok(validGame(g), `seed ${i} invalid state`);
     assert.ok(g.stones >= 0); assert.ok(g.npcs.every(n => Number.isFinite(n.progress))); assert.equal(g.pending, null);
     endings[g.ending!] = (endings[g.ending!] || 0) + 1; realms[REALMS[g.realm].name] = (realms[REALMS[g.realm].name] || 0) + 1;
     minAge = Math.min(minAge, g.age); maxAge = Math.max(maxAge, g.age);
+    ages.push(g.age); decisions.push(g.choices);
+    storyDecisions.push(Object.keys(g.seen).filter(id => id.startsWith('story-') && getEvent(g, id)?.kind === 'turning').length);
   }
-  console.log('SIMULATION_REPORT', JSON.stringify({ count: 2000, endings, realms, minAge, maxAge }));
+  const distribution = (values: number[]) => {
+    values.sort((a, b) => a - b);
+    const middle = values.length / 2;
+    return { min: values[0], median: (values[middle - 1] + values[middle]) / 2, max: values.at(-1) };
+  };
+  console.log('SIMULATION_REPORT', JSON.stringify({ count: 2000, endings, realms, minAge, maxAge, ages: distribution(ages), decisions: distribution(decisions), storyDecisions: distribution(storyDecisions), clock: { yearsPerLifeEstimate: 800, secondsPerYearAt1x: { 30: 2.25, 60: 4.5 } }, timingNote: 'Fast-start age begins at 16; the 30/60-minute settings estimate a life at 800 years, excluding player pauses and breakthrough ticks.' }));
 });
 
 
@@ -244,31 +277,228 @@ test('late breakthrough benefits from preparation but no longer defaults near th
   assert.ok(breakthroughChance(ready, true) <= .9);
 });
 
-test('major choices form lasting routes with contrasting annual modifiers and second-act consequences', () => {
-  const before = prepared();
-  before.age = 27; before.pending = null;
-  const fork = update(before, { type: 'advance' });
-  assert.equal(fork.pending, 'fate-first');
+test('the same beginning and different life directions produce distinct consequences and biographies', () => {
+  const fork = storyOpening();
+  assert.ok(fork.age >= 22 && fork.age <= 34);
+  assert.ok(requiresPlayerChoice(fork));
   const guardian = update(fork, { type: 'choose', index: 0 });
   const lone = update(fork, { type: 'choose', index: 1 });
   const trader = update(fork, { type: 'choose', index: 2 });
   assert.ok(guardian.flags.includes('fate-guardian') && lone.flags.includes('fate-lone') && trader.flags.includes('fate-contract'));
   assert.ok(fateInfluence(guardian).upkeep > 0 && fateInfluence(lone).healthDrain > 0);
   assert.ok(fateInfluence(trader).income > 0 && fateInfluence(trader).training < 1);
-  const at60 = until(guardian, 60);
-  assert.equal(at60.pending, 'fate-mid-guardian');
-  const defended = update({ ...at60, stones: 300 }, { type: 'choose', index: 0 });
-  const abandoned = update(at60, { type: 'choose', index: 1 });
-  assert.ok(defended.flags.includes('fate-city-defended'));
-  assert.ok(defended.delayed.some(d => d.title === '城头长明灯'));
-  assert.notEqual(fateInfluence(defended).upkeep, fateInfluence(abandoned).upkeep);
-  const later = until({ ...defended, focus: 'rest', stones: 3000 }, 140);
-  assert.equal(later.pending, 'fate-final');
-  const legacy = update(later, { type: 'choose', index: 0 });
-  const insight = update(later, { type: 'choose', index: 1 });
-  assert.ok(breakthroughChance(insight) > breakthroughChance(later));
-  assert.ok(fateInfluence(legacy).upkeep > fateInfluence(later).upkeep);
-  assert.ok(legacy.flags.includes('fate-legacy') && insight.flags.includes('fate-insight'));
+  const lives = [guardian, lone, trader].map((g, index) => {
+    const path = ['guardian', 'lone', 'contract'][index];
+    const middle = untilStory(g, id => id.startsWith(`story-${path}-`) && !id.endsWith('-legacy'));
+    assert.ok(middle.age >= fork.age + 9, 'The commitment needs time to develop before its next decision.');
+    assert.ok(getEvent(middle)?.cause, 'The player must see why the follow-up concerns this life.');
+    const chosen = update(middle, { type: 'choose', index: 0 });
+    assert.ok(storyView(chosen).chapters.length >= 2);
+    assert.ok(storyView(chosen).person?.name);
+    return { chosen, middle };
+  });
+  assert.equal(new Set(lives.map(l => l.middle.pending)).size, 3);
+  assert.equal(new Set(lives.map(l => JSON.stringify(fateInfluence(l.chosen)))).size, 3);
+  const records = lives.map(l => archiveLife(update(l.chosen, { type: 'retire' }), '2026-10-20'));
+  assert.equal(new Set(records.map(r => r.legacy)).size, 3);
+  for (let i = 0; i < records.length; i++) {
+    assert.ok(records[i].logs.some(l => l.title === getEvent(lives[i].middle)?.title));
+    assert.ok(biography(records[i]).includes(storyView(lives[i].chosen).person!.name));
+  }
+});
+
+test('the same guardian direction branches with the character actual skills and surroundings', () => {
+  const fork = storyOpening();
+  const guardian = update(fork, { type: 'choose', index: 0 });
+  const healer = structuredClone(guardian); healer.route = 'alchemy'; healer.focus = 'alchemy';
+  const traveller = structuredClone(guardian); traveller.route = 'sword'; traveller.region = 'north'; traveller.origin = 'merchant';
+  const healing = untilStory(healer, id => id.startsWith('story-guardian-'));
+  const exodus = untilStory(traveller, id => id.startsWith('story-guardian-'));
+  assert.equal(healing.pending, 'story-guardian-healing');
+  assert.equal(exodus.pending, 'story-guardian-exodus');
+  assert.notEqual(getEvent(healing)?.text, getEvent(exodus)?.text);
+  assert.equal(storyView(healing).person?.id, storyView(exodus).person?.id, 'Changing circumstances must not silently replace the recurring person.');
+  const stayed = update(exodus, { type: 'choose', index: 0 });
+  const changed = update(exodus, { type: 'choose', index: 1 });
+  assert.ok(changed.flags.includes('story-active-contract'));
+  assert.ok(changed.flags.includes('fate-guardian'), 'The old promise remains part of this person history.');
+  assert.notEqual(fateInfluence(stayed).income, fateInfluence(changed).income);
+  assert.ok(storyView(changed).chapters.length >= 2);
+  const followup = untilStory(changed, id => id.startsWith('story-contract-'));
+  assert.ok(getEvent(followup)?.cause);
+});
+
+test('a story consequence unfolds automatically before its final decision, without replaying the same chapter', () => {
+  const guardian = update(storyOpening(), { type: 'choose', index: 0 });
+  const middle = untilStory(guardian, id => id.startsWith('story-guardian-'));
+  let g = update(middle, { type: 'choose', index: 0 });
+  const echo = 'story-guardian-echo';
+  while (g.alive && g.age < middle.age + 22 && g.seen[echo] === undefined) {
+    g = g.pending ? update(g, { type: 'choose', index: autoChoice(g, 'safe') }) : update(g, { type: 'advance' });
+    assert.notEqual(g.pending, echo, 'The consequence should not ask the player to confirm a routine result.');
+  }
+  assert.ok(g.seen[echo] >= middle.age + 6);
+  const echoTitle = getEvent(g, echo)!.title;
+  assert.equal(g.logs.filter(l => l.title === echoTitle).length, 1);
+  assert.ok(storyView(g).effects.length > 0);
+  const finale = untilStory(g, id => id === 'story-guardian-legacy');
+  assert.ok(finale.age >= middle.age + 22);
+  const settled = update(finale, { type: 'choose', index: 0 });
+  const later = until(settled, settled.age + 20);
+  assert.equal(later.logs.filter(l => l.title === echoTitle).length, 1);
+  assert.ok(archiveLife(update(later, { type: 'retire' })).logs.some(l => l.title === echoTitle));
+});
+
+test('a chosen clinic actually supplies later years and changes the bound person rather than an unrelated friend', () => {
+  const guardian = update(storyOpening(), { type: 'choose', index: 0 });
+  guardian.route = 'alchemy';
+  const middle = untilStory(guardian, id => id === 'story-guardian-healing');
+  const personId = storyView(middle).person!.id;
+  const person = middle.npcs.find(n => n.id === personId)!;
+  person.alive = true; person.relation = 40;
+  const chosen = update(middle, { type: 'choose', index: 0 });
+  assert.equal(chosen.npcs.find(n => n.id === personId)!.relation, 48);
+  for (const npc of middle.npcs.filter(n => n.id !== personId)) assert.deepEqual(chosen.npcs.find(n => n.id === npc.id), npc);
+  chosen.age = Math.ceil((chosen.age + 1) / 3) * 3 - 1;
+  chosen.stats.health = 60; chosen.focus = 'study';
+  const withoutClinic = structuredClone(chosen);
+  withoutClinic.flags = withoutClinic.flags.filter(flag => flag !== 'story-clinic');
+  const supplied = update(chosen, { type: 'advance' });
+  const baseline = update(withoutClinic, { type: 'advance' });
+  assert.ok(Math.abs(supplied.stats.health - baseline.stats.health - 0.9) < 1e-9);
+  assert.equal(supplied.stones, baseline.stones - 3);
+  assert.equal(supplied.inventory.herb, baseline.inventory.herb + 1);
+});
+
+test('automatic play stops unchanged at major decisions, then continues after the player chooses', () => {
+  const fork = storyOpening(); const before = structuredClone(fork);
+  for (const policy of ['safe', 'bold', 'random'] as const) {
+    const waiting = autoStep(fork, policy);
+    assert.equal(waiting.error, undefined);
+    assert.deepEqual(waiting.game, before, `${policy} must not select or consume randomness while waiting`);
+  }
+  assert.deepEqual(fork, before, 'The source game is never mutated by automatic play.');
+  const selected = update(fork, { type: 'choose', index: 0 });
+  assert.equal(selected.pending, null);
+  assert.ok(!requiresPlayerChoice(selected));
+  const continued = autoStep(selected, 'safe').game;
+  assert.ok(continued.age > selected.age || continued.attempts > selected.attempts);
+});
+
+test('automation also preserves vows, forbidden arts and relationship commitments for the player', () => {
+  for (const id of ['departure', 'vow', 'forbidden', 'disciple', 'sect-war', 'forbidden-echo']) {
+    const g = prepared(); g.pending = id; g.seen[id] = g.age;
+    assert.ok(requiresPlayerChoice(g), id);
+    assert.deepEqual(autoStep(g, 'bold').game, g, `${id} must not become an invisible permanent commitment`);
+  }
+});
+
+test('ordinary experiences are automatic and adult manual encounters respect breathing space', () => {
+  let routines = 0, opportunities = 0;
+  for (let seed = 0; seed < 8; seed++) {
+    let g = createGame({ ...config, seed: `story-pacing-${seed}`, fastStart: true });
+    g = update(g, { type: 'choose', index: 0 });
+    g.realm = 2; g.lifespan = 260; g.stones = 10000; g.focus = 'rest';
+    let lastManual = g.age;
+    for (let year = 0; year < 120 && g.alive; year++) {
+      const before = new Set(Object.keys(g.seen));
+      g = update(g, { type: 'advance' });
+      for (const id of Object.keys(g.seen).filter(id => !before.has(id))) {
+        const event = getEvent(g, id)!;
+        if (event.kind === 'routine') { routines++; assert.notEqual(g.pending, id); }
+      }
+      if (g.pending) {
+        const event = getEvent(g)!;
+        assert.notEqual(event.kind, 'routine');
+        if (event.id !== 'vow') assert.ok(g.age - lastManual >= 6, `Adult decisions were too close: ${event.id} at ${g.age}, previous at ${lastManual}`);
+        if (event.kind !== 'turning') {
+          opportunities++;
+          assert.ok(g.age - lastManual >= 12, `An ordinary opportunity interrupted too soon: ${event.id}`);
+        }
+        lastManual = g.age;
+        g = update(g, { type: 'choose', index: autoChoice(g, 'safe') });
+      }
+    }
+  }
+  assert.ok(routines > 0, 'There should still be quiet life events between important choices.');
+  assert.ok(opportunities > 0, 'Reducing interruptions must not remove all optional opportunities.');
+});
+
+test('identical player actions reproduce the same branching story and concrete recurring person', () => {
+  const play = () => {
+    let g = update(storyOpening(), { type: 'choose', index: 0 });
+    g = untilStory(g, id => id.startsWith('story-guardian-'));
+    g = update(g, { type: 'choose', index: 0 });
+    g = untilStory(g, id => id.endsWith('-legacy'));
+    return update(g, { type: 'choose', index: 1 });
+  };
+  const a = play(), b = play();
+  assert.deepEqual(a, b);
+  assert.deepEqual(storyView(a), storyView(b));
+  const beforeRendering = structuredClone(a);
+  for (let render = 0; render < 5; render++) { storyView(a); getEvent(a, 'story-guardian-healing'); }
+  assert.deepEqual(a, beforeRendering, 'Rendering the story repeatedly must not consume RNG or rewrite the history.');
+});
+
+test('recurring people stay identifiable after death or ascension without returning as living visitors', () => {
+  let g = update(storyOpening(), { type: 'choose', index: 0 });
+  g = untilStory(g, id => id.startsWith('story-guardian-'));
+  const person = storyView(g).person!;
+  assert.ok(person.id && person.name);
+  const living = structuredClone(g); const livingPerson = living.npcs.find(n => n.id === person.id)!;
+  livingPerson.alive = true; livingPerson.realm = 2;
+  const liveText = getEvent(living)!.text;
+  const deceased = structuredClone(living); const deadPerson = deceased.npcs.find(n => n.id === person.id)!;
+  deadPerson.alive = false; deadPerson.story = '此前已寿终坐化。';
+  const deadText = getEvent(deceased)!.text;
+  assert.ok(deadText.includes(person.name));
+  assert.notEqual(deadText, liveText);
+  assert.match(deadText, /遗|旧信|旧札|故去|离世|已逝|身后|寿终|不在人世|不在世|故人/);
+  const ascended = structuredClone(deceased); const ascendedPerson = ascended.npcs.find(n => n.id === person.id)!;
+  ascendedPerson.realm = 6; ascendedPerson.story = '此前白日飞升，已离开此方世界。';
+  const ascendedText = getEvent(ascended)!.text;
+  assert.ok(ascendedText.includes(person.name));
+  assert.notEqual(ascendedText, deadText);
+  assert.match(ascendedText, /飞升|天门|天外|上界|离开此方/);
+  assert.equal(storyView(deceased).person?.id, person.id);
+  assert.equal(storyView(ascended).person?.id, person.id);
+  assert.equal(storyView(deceased).person?.alive, false);
+  assert.equal(storyView(ascended).person?.alive, false);
+  assert.ok(validGame(deceased) && validGame(ascended));
+});
+
+test('malformed saved story effects are rejected before replacing valid current progress', () => {
+  const valid = settleProfile(newProfile(), update(storyOpening(), { type: 'choose', index: 0 }));
+  const before = JSON.stringify(valid);
+  for (const effect of [{ storyPath: 'missing-path' }, { npcId: 7 }, { npcId: 'missing-person', npcRelation: 4 }]) {
+    const malformed = JSON.parse(before);
+    malformed.game.delayed.push({ at: malformed.game.age + 5, title: '旧信', text: '一段尚未兑现的承诺。', effect });
+    assert.throws(() => parseProfile(JSON.stringify(malformed)));
+    assert.equal(JSON.stringify(valid), before);
+  }
+  const roundTrip = parseProfile(before);
+  assert.deepEqual(roundTrip, valid);
+});
+
+test('old v1 pending fate events remain importable and their original choices retain their effects', () => {
+  for (const [id, prior, expected] of [
+    ['fate-first', '', 'fate-guardian'],
+    ['fate-mid-guardian', 'fate-guardian', 'fate-city-defended'],
+    ['fate-mid-lone', 'fate-lone', 'fate-shared'],
+    ['fate-mid-contract', 'fate-contract', 'fate-honest'],
+    ['fate-final', 'fate-guardian', 'fate-legacy'],
+  ]) {
+    const old = prepared(); old.age = id === 'fate-first' ? 28 : id === 'fate-final' ? 140 : 60;
+    old.pending = id; old.seen[id] = old.age; if (prior) old.flags.push(prior);
+    const profile = settleProfile(newProfile(), old);
+    const imported = parseProfile(JSON.stringify(profile)).game!;
+    assert.equal(imported.pending, id);
+    assert.ok(requiresPlayerChoice(imported));
+    const selected = update(imported, { type: 'choose', index: 0 });
+    assert.ok(selected.flags.includes(expected), id);
+    assert.equal(selected.pending, null);
+    assert.ok(validGame(selected));
+  }
 });
 
 test('retirement resolves a pending decision without losing the completed life', () => {

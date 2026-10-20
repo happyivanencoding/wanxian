@@ -1,32 +1,19 @@
 import { FOCUSES, ORIGINS, REALMS, ROUTES, SECTS, SECT_RANKS } from '../game/data.ts';
-import { breakthroughChance, currentRegion, realmName, trainingRate, worldPhase } from '../game/engine.ts';
-import { EVENT_MAP } from '../game/events.ts';
-import { fateInfluence } from '../game/fate.ts';
-import './JourneyFate.css';
+import { breakthroughChance, currentRegion, getEvent, realmName, trainingRate, worldPhase } from '../game/engine.ts';
 import { Icon, MountainScene, Portrait, Seal } from '../components/Art.tsx';
 import { TrainingInsight } from '../components/CultivationInsight.tsx';
+import StoryPanel from '../components/StoryPanel.tsx';
 import { LogRow, Notice, SectionTitle, StatBar, numberText, type PageProps } from '../components/Common.tsx';
 
 export default function Journey({ game: g, act, navigate, openBreakthrough, openEvent, newLife }: PageProps) {
   const realm = REALMS[g.realm], progress = Math.min(100, g.progress / realm.need * 100);
-  const region = currentRegion(g), phase = worldPhase(g), fate = fateInfluence(g);
+  const region = currentRegion(g), phase = worldPhase(g), pendingEvent = getEvent(g);
   return <div className="page-enter">
     <div className="journey-hero"><MountainScene compact/><div className="journey-hero-wash"/><div className="journey-hero-copy"><span className="eyebrow">{g.yearName} · {2300 + g.age}年 / {region.name}</span><h1>{g.name}<span className="realm-badge">{realmName(g)}</span></h1><p>{g.alive ? realm.description : g.endingText}</p><div className="identity-tags"><span>{ORIGINS.find(o => o.id === g.origin)!.name}</span><i/><span>{ROUTES.find(r => r.id === g.route)!.name}</span><i/><span>{g.sect ? SECTS.find(s => s.id === g.sect)!.name + ' · ' + SECT_RANKS[g.sectRank] : '山野散修'}</span></div></div><div className="journey-age"><strong>{g.age}</strong><span>{g.alive ? '岁 / 此生' : '岁 / 结卷'}</span><small>{g.alive ? `寿元尚余 ${Math.max(0, g.lifespan - g.age)} 年` : g.ending}</small></div><Seal small>问道</Seal></div>
     {!g.alive && <div className="ending-banner"><div><span className="eyebrow">此生已结卷</span><h3>{g.ending}</h3><p>这段人生已经收进前尘录。没有消失，只是换了一页。</p></div><button className="button" onClick={() => navigate('archives')}>翻阅传记 <Icon name="book"/></button><button className="button primary" onClick={newLife}>再入轮回 <Icon name="rebirth"/></button></div>}
-    {g.pending && <button className="pending-banner" onClick={openEvent} data-testid="pending-event"><span className="pending-mark"><Icon name="spark"/></span><div><small>时光暂驻 · 一个选择正在等你</small><strong>{EVENT_MAP[g.pending].title}</strong></div><span>作出抉择 <Icon name="arrow"/></span></button>}
+    {pendingEvent && <button className="pending-banner" onClick={openEvent} data-testid="pending-event"><span className="pending-mark"><Icon name="spark"/></span><div><small>时光暂驻 · {pendingEvent.kind === 'turning' ? '此生走向，由你决定' : '一段机缘正在等你'}</small><strong>{pendingEvent.title}</strong></div><span>作出抉择 <Icon name="arrow"/></span></button>}
     <div className="overview-strip"><div><Icon name="coins"/><span>灵石<strong>{numberText(g.stones)}</strong></span><button className="mini-link" onClick={() => navigate('inventory')}>去坊市 <Icon name="chevron" size={12}/></button></div><div><Icon name="clock"/><span>寿元上限<strong>{g.lifespan}<small> 年</small></strong></span></div><div><Icon name="spark"/><span>今年行动<strong>{g.actionsLeft}<small> / 3</small></strong></span><small className="strip-note">推进一年恢复</small></div><div><Icon name="compass"/><span>天地时运<strong className="phase-label">{phase.name}</strong></span></div></div>
-    <section className="fate-arc" data-testid="fate-arc">
-      <div><span className="eyebrow">选择留下的回响 · 命运主线</span><h3>{fate.title}</h3><p>{fate.description}</p></div>
-      <div className="fate-arc-effects">
-        {fate.training !== 1 && <span>闭关修行 ×{fate.training.toFixed(2)}</span>}
-        {fate.income !== 0 && <span>每年商盟收入 +{fate.income} 灵石</span>}
-        {fate.upkeep !== 0 && <span>每年额外承担 {fate.upkeep} 灵石</span>}
-        {fate.healthDrain > 0 && <span>每年额外耗费体魄 {fate.healthDrain.toFixed(1)}</span>}
-        {fate.mindDrain !== 0 && <span>每年道心负担 {fate.mindDrain > 0 ? '+' : '−'}{Math.abs(fate.mindDrain).toFixed(1)}</span>}
-        {fate.chance !== 0 && <span>破境机缘 +{(fate.chance * 100).toFixed(1)} 个百分点</span>}
-        {fate.title === '命途未定' && <span>选择将改变未来数十年的收支、修行与际遇</span>}
-      </div>
-    </section>
+    <StoryPanel game={g} navigate={navigate}/>
     <div className="journey-grid"><div className="journey-main">
       <section className="panel"><SectionTitle title="把光阴，放在何处" eyebrow="修行重心" description={g.age < 16 ? '十六岁前自动积累学识与根基；成年后生效，可随时更换重心。' : '一年只专注一件事。不同取舍，走向不同的自己。'}/><div className="focus-grid">{FOCUSES.map(focus => <button key={focus.id} data-testid={`focus-${focus.id}`} className={`focus-card ${g.focus === focus.id ? 'active' : ''}`} disabled={!g.alive || g.age < 6} onClick={() => act({ type: 'focus', focus: focus.id })} aria-pressed={g.focus === focus.id} title={focus.description}><Icon name={focus.icon} size={24}/><strong>{focus.name}</strong><small>{focus.subtitle}</small>{g.focus === focus.id && <span className="focus-check"><Icon name="check" size={13}/></span>}</button>)}</div><div className="focus-detail"><Icon name="leaf" size={16}/>{FOCUSES.find(f => f.id === g.focus)!.description}</div></section>
       <section className="panel chronicle-preview"><SectionTitle title="此生片语" eyebrow="最近的经历" aside={<button className="text-button" onClick={() => navigate('chronicle')}>完整年谱 <Icon name="arrow" size={16}/></button>}/><div>{g.logs.slice(-5).reverse().map(entry => <LogRow key={entry.id} entry={entry} onStar={() => act({ type: 'star', id: entry.id })}/>)}</div></section>

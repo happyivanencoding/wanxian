@@ -17,9 +17,10 @@ export interface Game {
 export interface Effect {
   stats?: Partial<Stats>; stones?: number; progress?: number; lifespan?: number; contribution?: number;
   item?: string; amount?: number; flag?: string; npcRelation?: number; rootBoost?: number;
+  npcId?: string; storyPath?: 'guardian' | 'lone' | 'contract';
 }
 export interface Choice { label: string; hint: string; effect: Effect; cost?: number; requiresStat?: [Stat, number]; chance?: number; failure?: Effect; successText?: string; failureText?: string; autoScore: number; delayed?: { after: number; title: string; text: string; effect: Effect } }
-export interface EventDef { id: string; title: string; text: string; category: LogKind; minAge?: number; maxAge?: number; minRealm?: number; maxRealm?: number; focus?: Focus; region?: string; flag?: string; notFlag?: string; sect?: boolean; cooldown?: number; once?: boolean; weight?: number; choices: Choice[] }
+export interface EventDef { id: string; title: string; text: string; category: LogKind; kind?: 'routine' | 'opportunity' | 'turning'; cause?: string; minAge?: number; maxAge?: number; minRealm?: number; maxRealm?: number; focus?: Focus; region?: string; flag?: string; notFlag?: string; sect?: boolean; cooldown?: number; once?: boolean; weight?: number; choices: Choice[] }
 export interface BirthConfig { name: string; gender: string; origin: string; era: string; route: string; mode: 'seeker' | 'all'; fastStart: boolean; seed: string }
 export interface LifeRecord { id: string; name: string; age: number; realm: number; origin: string; route: string; ending: string; endingText: string; totalStones: number; choices: number; legacy: string; logs: Log[]; date: string }
 export interface Profile { version: 1; game: Game | null; archives: LifeRecord[]; slots: ({ name: string; savedAt: string; game: Game } | null)[]; settings: { theme: 'light' | 'dark'; speed: number; durationMinutes: 30 | 60; policy: 'safe' | 'bold' | 'random'; reducedMotion: boolean }; achievements: string[] }

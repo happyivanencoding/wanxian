@@ -1,4 +1,6 @@
 import type { Effect, Focus, Stat } from './types.ts';
+import { SECTS } from './sects.ts';
+export { SECTS } from './sects.ts';
 
 export const REALMS = [
   { name: '凡人', short: '凡', life: 85, need: 48, cost: 12, description: '听见山外的风，尚不知长生为何物。' },
@@ -43,11 +45,6 @@ export const REGIONS = [
   { id: 'desert', name: '赤霞荒原', subtitle: '古迹长眠，险中求缘', symbol: '霞', spirit: 1.45, risk: 0.27, minRealm: 2, cost: 140, x: 17, y: 31, description: '赤砂之下埋着上古洞府。历练灵石更多，失手的代价也更大。' },
   { id: 'central', name: '玉京仙城', subtitle: '万宗汇聚，大道交锋', symbol: '京', spirit: 1.65, risk: 0.12, minRealm: 3, cost: 320, x: 80, y: 39, description: '玉楼接天，千宗来会。高阶修士在此追寻最后一线天机。' },
 ];
-export const SECTS = [
-  { id: 'qinglan', name: '青岚剑宗', mark: '剑', style: '剑心明澈', minRealm: 1, reputation: 8, description: '以剑护道，以心养锋。宗门修行增益 12%，年度战技增长。', bonus: '修炼 +12% · 战技 +1 / 年' },
-  { id: 'herb', name: '百草谷', mark: '药', style: '草木有灵', minRealm: 1, reputation: 5, description: '一炉烟火养万物。宗门每年配给灵草，丹术经验额外增长。', bonus: '灵草 +1 / 年 · 丹术 +1 / 年' },
-  { id: 'star', name: '问星阁', mark: '星', style: '观天知命', minRealm: 2, reputation: 20, description: '观星知运，参悟天地。年度悟性增长，突破成功率增加。', bonus: '悟性 +1 / 年 · 突破 +6%' },
-];
 export const SECT_RANKS = ['外门弟子', '内门弟子', '真传弟子', '传功长老'];
 export const HOMES = [
   { id: 'mat', name: '静心蒲团', icon: 'leaf', cost: 45, max: 3, description: '每级让静养多恢复 2 点道心，年度修炼多得 3%。' },
@@ -67,9 +64,7 @@ export const ITEMS: Item[] = [
   { id: 'longevity', name: '延寿丹', mark: '寿', kind: 'pill', price: 320, minRealm: 2, description: '增加寿元上限 30 年。一生最多服用三枚。', effect: { lifespan: 30 } },
   { id: 'sword', name: '秋水剑', mark: '剑', kind: 'gear', price: 95, minRealm: 1, description: '装备后历练有效战技 +15；不永久改变基础战技。' },
   { id: 'talisman', name: '玄龟护符', mark: '符', kind: 'gear', price: 120, minRealm: 1, description: '装备后历练受伤概率降低 40%。与兵器共用一个法宝位。' },
-  { id: 'sect-sword', name: '青岚阵纹剑', mark: '阵', kind: 'gear', price: 160, minRealm: 1, market: false, source: '学会青岚剑阵时授予，每世一件', description: '装备后历练有效战技 +24。宗门授予的法宝；出售后不会补发，与其他法宝共用一个装备位。' },
-  { id: 'sect-satchel', name: '百草药囊', mark: '药', kind: 'gear', price: 150, minRealm: 1, market: false, source: '学会百草药理时授予，每世一件', description: '装备后回春丹、清心丹恢复量 +8，炼丹成功率 +4 个百分点。出售后不会补发，与其他法宝共用一个装备位。' },
-  { id: 'sect-seal', name: '问星法印', mark: '星', kind: 'gear', price: 200, minRealm: 2, market: false, source: '学会观象诀时授予，每世一件', description: '装备后突破成功率 +3.5 个百分点，仍受90%上限约束。出售后不会补发，与其他法宝共用一个装备位。' },
+  ...SECTS.map(sect => ({ ...sect.specialty.gear, kind: 'gear' as const, market: false, source: `学会${sect.specialty.name}时授予，每世一件`, description: `${sect.specialty.gear.description} 仅一个法宝位；出售后不会补发。` })),
   { id: 'manual', name: '太素养气篇', mark: '经', kind: 'book', price: 70, minRealm: 0, description: '研读增加悟性 12、根基 8。此书一生只可领悟一次。', effect: { stats: { insight: 12, foundation: 8 }, flag: 'read-manual' } },
   { id: 'swordbook', name: '问剑十三式', mark: '诀', kind: 'book', price: 110, minRealm: 1, description: '研读增加战技 18。一生只可领悟一次。', effect: { stats: { combat: 18 }, flag: 'read-swordbook' } },
 ];

@@ -9,45 +9,49 @@ export interface RegionWorld {
   opportunities: string[];
 }
 
+const regionalFactions = (id: string) => SECTS.filter(sect => sect.home === id).map(sect => `${sect.name} · ${sect.style}`);
+
 export const WORLD_REGIONS: Record<string, RegionWorld> = {
   qinglan: {
     continent: '青衡洲 · 青岚九府',
     culture: '山门、村镇与修真家族共用水脉。宗门以庇护乡里换取供奉，散修依靠手艺与行路立足，旧日的人情常比一纸名帖更有分量。',
-    practice: '重视根基与师承，三种准备均可稳步进行；青岚剑宗在此收徒授法。',
-    factions: ['青岚剑宗 · 护山剑阵与传功师承', '九府乡约 · 村镇互助与药堂', '山间散修 · 古法、手艺与行路'],
+    practice: '重视根基与师承，三种准备均可稳步进行；剑宗、乡约、行会与清修山门各有授业。',
+    factions: regionalFactions('qinglan'),
     opportunities: ['山雨后显露的古修洞天', '山城与旧识的托付'],
   },
   river: {
     continent: '沧溟洲 · 云泽水乡',
     culture: '河港连着外海，药师、船户和商盟依潮水生活。契约要在水驿留副本，施药的人与贩药的人往往在同一条船上。',
-    practice: '以潮汐与药性温养经脉，药性准备每个有效年份推进1.3份；百草谷在此收徒。',
-    factions: ['百草谷 · 医方、丹炉与药性合脉', '渡潮盟 · 水驿、船契与供给', '折梅药库 · 旧商路留下的争执'],
+    practice: '以潮汐与药性温养经脉，药性准备每个有效年份推进1.3份；医药、水商、潮息与古岛阵学在此并存。',
+    factions: regionalFactions('river'),
     opportunities: ['熟悉字迹带来的求援', '水路、药材与失落的旧账'],
   },
   north: {
     continent: '玄朔洲 · 北溟雪域',
     culture: '漫长寒季让炉火和守夜成为公共的责任。星轨映在冰原上，锻体者与观象者各有一套应付天地的办法。',
-    practice: '风雪磨砺筋骨，行山锻体准备每个有效年份推进1.3份；问星阁在此授业。',
-    factions: ['问星阁 · 观象、阵势与周天推演', '断雪剑庭旧址 · 昔日守阵者的遗迹', '北溟炉会 · 行旅补给与锻体旧法'],
+    practice: '风雪磨砺筋骨，行山锻体准备每个有效年份推进1.3份；观象、锻体、护阵与冰剑各有师承。',
+    factions: regionalFactions('north'),
     opportunities: ['冰雪下仍在运转的剑冢', '守夜人留存的旧物与见闻'],
   },
   desert: {
     continent: '赤曜洲 · 赤霞荒原',
     culture: '古战场与迁徙营地交错，出身名帖抵不过一次共同守夜。这里既有互助的行旅盟，也有以危险灵息修行的异道遗脉。',
     practice: '艰险行路促进淬体（每有效年1.2份），残阵有益推演（1.1份）；异法的力量与约束须由亲历者承担。',
-    factions: ['烬原盟 · 散修护行与遗迹交换', '蚀日道遗脉 · 以冒险炼体的失传方法', '迁徙营地 · 互助、欠契与新故乡'],
+    factions: regionalFactions('desert'),
     opportunities: ['荒原幻城与失落遗址', '行旅者对古代异法的传闻'],
   },
   central: {
     continent: '玉京洲 · 玉京仙城',
     culture: '诸洲商路交会于此，传承需要名录，术法讲究可以验证的来历。富裕山门掌握精制法器，来求道的散修也能以本事换取席位。',
     practice: '典籍与诸家论道促进推演，参悟准备每个有效年份推进1.3份。',
-    factions: ['玉京议庭 · 山门协商与传承名录', '天衡算院旧址 · 古代周天学问', '百家道会 · 各洲修士的交锋与互证'],
+    factions: regionalFactions('central'),
     opportunities: ['旧线索引来的高台残图', '百家论道与跨洲传承'],
   },
 };
 
-export function regionWorld(id: string): RegionWorld { return WORLD_REGIONS[id] ?? WORLD_REGIONS.qinglan; }
+export function regionWorld(id: string): RegionWorld {
+  return WORLD_REGIONS[id] ?? WORLD_REGIONS.qinglan;
+}
 export function regionPractice(id: string, method: string): number {
   if (id === 'river' && method === 'medicine') return 1.3;
   if (id === 'north' && method === 'temper') return 1.3;
@@ -55,7 +59,7 @@ export function regionPractice(id: string, method: string): number {
   if (id === 'central' && method === 'meditate') return 1.3;
   return 1;
 }
-export function sectHome(id: string): string { return ({ qinglan: 'qinglan', herb: 'river', star: 'north' } as Record<string, string>)[id] ?? 'qinglan'; }
+export function sectHome(id: string): string { return SECTS.find(sect => sect.id === id)?.home ?? 'qinglan'; }
 
 /** Identity describes what this person has actually become; it is not a birth class. */
 export function lifeIdentity(g: Game): { title: string; description: string; facets: string[] } {

@@ -4,8 +4,12 @@ import { fateInfluence } from './fate.ts';
 import { activateStoryPath, getStoryEvent, nextStoryEvent, recordStoryChoice, storyAnnualEffects, storyLegacy, storyTravelMultiplier } from './story.ts';
 import { advancePreparation, completePreparation, learnSectSpecialty, preparationChance, preparationState, preparationTarget, progressionBenefits, selectPreparation } from './progression.ts';
 import { mutateExpedition } from './expeditions.ts';
-import { lifeIdentity, sectHome } from './world.ts';
-import type { Action, ActionResult, BirthConfig, Choice, Effect, EventDef, Game, LifeRecord, LogKind, NPC, Stat } from './types.ts';
+import { lifeIdentity } from './world.ts';
+import { sectAnnualEffect, sectEntryReason, sectMissionEffect, sectPassive, sectStudyEffect } from './sects.ts';
+import { directCandidate, npcResponses } from './director.ts';
+import type { DirectorControl } from './director.ts';
+import type { Action, ActionResult, BirthConfig, Choice, DirectedAction, DirectedPlan, DirectorDecision, Effect, EventDef, Game, LifeRecord, LogKind, NPC, Stat } from './types.ts';
+export type { DirectedAction, DirectedPlan, DirectorCandidate, DirectorRequest, DirectorDecision } from './types.ts';
 
 export const clamp = (value: number, min = 0, max = 100) => Math.min(max, Math.max(min, value));
 const round = (value: number) => Math.round(value * 10) / 10;
@@ -37,7 +41,7 @@ export function trainingFactors(g: Game) {
     base: 2.5 + g.aptitude / 12,
     realm: [1, 1.2, 1.6, 2.1, 2.8, 3.8, 0][g.realm],
     region: currentRegion(g).spirit, era: currentEra(g).spirit, phase: worldPhase(g).spirit,
-    preparation: 1 + (g.home.array || 0) * 0.12 + (g.home.mat || 0) * 0.03 + (g.route === 'balanced' ? 0.1 : 0) + (g.sect === 'qinglan' ? 0.12 : 0),
+    preparation: 1 + (g.home.array || 0) * 0.12 + (g.home.mat || 0) * 0.03 + (g.route === 'balanced' ? 0.1 : 0) + (sectPassive(g).cultivation ?? 0),
     mind: 0.55 + g.stats.mind * 0.0045, health: 0.4 + g.stats.health * 0.006,
     fate: fateInfluence(g).training,
     attainments: progressionBenefits(g).training,
@@ -56,7 +60,7 @@ export function breakthroughFactors(g: Game, usePill = false) {
     { label: '先天资质', value: g.aptitude * 0.00085 },
     { label: '境界难度', value: -g.realm * 0.075 },
     { label: '凝灵丹准备', value: usePill ? 0.13 + progressionBenefits(g).pillChance : 0 },
-    { label: '问星阁师承', value: g.sect === 'star' ? 0.06 : 0 },
+    { label: '当前宗门师承', value: sectPassive(g).breakthrough ?? 0 },
     { label: '体魄未充盈', value: -Math.max(0, 75 - g.stats.health) * 0.0028 },
     { label: '一生道路的积累', value: fateInfluence(g).chance },
     { label: '本境持续准备', value: preparationChance(g) },
@@ -193,7 +197,7 @@ function openEvent(g: Game, id: string) {
   }
   g.pending = id; g.seen[id] = g.age;
 }
-function selectEvent(g: Game) {
+function selectEvent(g: Game, director?: DirectorControl) {
   const forced = CHILD_EVENTS.get(g.age);
   if (forced && g.seen[forced] === undefined) { openEvent(g, forced); return; }
   if (g.age < 16) return;
@@ -215,7 +219,16 @@ function selectEvent(g: Game) {
   };
   if (opportunities.length && random(g) < (g.focus === 'adventure' ? 0.2 : 0.14)) {
     const selected = chooseWeighted(opportunities);
-    if (selected) { openEvent(g, selected.id); return; }
+    if (selected) {
+      // Fixed milestones and major turning points retain their original schedule.
+      // The model only selects which eligible ordinary opportunity appears, never its answer.
+      const candidates = opportunities.filter(event => event.kind !== 'turning').map(event => {
+        const current = getEvent(g, event.id) ?? event;
+        return { id: event.id, label: current.title, description: current.text };
+      });
+      const id = selected.kind === 'turning' ? selected.id : directCandidate(g, 'event', candidates, selected.id, director);
+      openEvent(g, id); return;
+    }
   }
   if (g.age - lastRoutine < 8 || random(g) >= 0.2) return;
   const routines = EVENTS.filter(e => e.kind === 'routine' && (e.weight ?? 1) > 0 && eventEligible(g, e));
@@ -275,7 +288,7 @@ function growNPCs(g: Game) {
     if (npc.alive && npc.role === 'companion') gain(g, { stats: { mind: 0.8 } });
   }
 }
-function advanceOne(g: Game) {
+function advanceOne(g: Game, director?: DirectorControl) {
   if (!g.alive || g.pending || g.expeditions?.active) return;
   g.age++; g.actionsLeft = 3;
   growNPCs(g);
@@ -323,10 +336,7 @@ function advanceOne(g: Game) {
         if (g.age % 5 === 0 || !g.logs.some(entry => entry.title === '修行资用短缺')) log(g, '修行资用短缺', `今年日常供养需要${upkeep}灵石，仍缺${shortage}灵石；缺资年份持续损耗体魄与道心。`, 'economy');
       }
       if (g.sect) {
-        gain(g, { stones: 6 + r * 5 + g.sectRank * 8, contribution: 1 });
-        if (g.sect === 'qinglan') gain(g, { stats: { combat: 1 } });
-        if (g.sect === 'herb') gain(g, { item: 'herb', amount: 1, stats: { alchemy: 1 } });
-        if (g.sect === 'star') gain(g, { stats: { insight: 1 } });
+        gain(g, sectAnnualEffect(g));
       }
       if (g.home.garden) gain(g, { item: 'herb', amount: g.home.garden + (g.region === 'river' ? 1 : 0) + (worldPhase(g).name === '百草丰年' ? 1 : 0) });
       if (g.home.library) gain(g, { stats: { insight: g.home.library * (g.focus === 'study' ? 0.8 : 0.4) } });
@@ -346,7 +356,7 @@ function advanceOne(g: Game) {
     if (g.age % 5 === 0) log(g, g.age < 16 ? '少年渐长' : '岁月小记', `${g.age < 16 ? '读书、练功，渐渐长大。' : `日常修行按安排继续，眼下以${FOCUSES.find(f => f.id === g.focus)!.name}为重心。`}如今修为${g.progress}，积蓄${g.stones}灵石，体魄${g.stats.health}，道心${g.stats.mind}。`, g.focus === 'work' || g.focus === 'alchemy' ? 'economy' : 'cultivation');
   }
   checkLife(g);
-  if (g.alive) selectEvent(g);
+  if (g.alive) selectEvent(g, director);
   snapshot(g);
 }
 function breakthrough(g: Game, usePill: boolean): string | null {
@@ -378,7 +388,7 @@ function breakthrough(g: Game, usePill: boolean): string | null {
   }
   snapshot(g); return null;
 }
-function perform(g: Game, action: Action): string | null {
+function perform(g: Game, action: Action, director?: DirectorControl): string | null {
   if (action.type === 'star') { const entry = g.logs.find(l => l.id === action.id); if (entry) entry.starred = !entry.starred; return null; }
   if (!g.alive) return '此生已结卷，请在轮回页开启新的人生';
   if (action.type === 'retire') { finish(g, '归隐山林', '你放下追逐境界的执念，将此生的求道篇章停在这里。余下的光阴，留给山林、故人，以及自己的生活。'); return null; }
@@ -403,7 +413,7 @@ function perform(g: Game, action: Action): string | null {
   if (g.pending) return '请先处理眼前的抉择';
   if (action.type === 'advance') {
     const years = clamp(Math.floor(action.years ?? 1), 1, 100);
-    for (let year = 0; year < years && g.alive && !g.pending; year++) advanceOne(g);
+    for (let year = 0; year < years && g.alive && !g.pending; year++) advanceOne(g, director);
     return null;
   }
   if (g.age < 16) return '十六岁后可独立外出、交易与经营洞府';
@@ -470,22 +480,20 @@ function perform(g: Game, action: Action): string | null {
   } else if (action.type === 'join') {
     const sect = SECTS.find(s => s.id === action.id);
     if (!sect) return '没有这个宗门';
-    if (g.sect) return '已在宗门中，需先离宗';
-    if (g.region !== sectHome(sect.id)) return `请先前往${REGIONS.find(region => region.id === sectHome(sect.id))!.name}拜入山门`;
-    if (g.realm < sect.minRealm || g.stats.reputation < sect.reputation) return `入门需要${REALMS[sect.minRealm].name}境与${sect.reputation}声望`;
-    if (g.stones < 30) return '入门需准备30灵石';
-    g.stones -= 30; g.sect = sect.id; g.sectRank = 0; g.contribution = 0;
+    const reason = sectEntryReason(g, sect.id); if (reason) return reason;
+    g.stones -= sect.entryCost; g.sect = sect.id; g.sectRank = 0; g.contribution = 0;
     log(g, '拜入山门', `你成为${sect.name}的外门弟子。${sect.bonus}。`, 'relationship', true);
   } else if (action.type === 'sect') {
     if (!g.sect) return '你尚未加入宗门';
     if (action.job === 'learn') {
       const error = learnSectSpecialty(g, { gain, log }); if (error) return error;
     } else if (action.job === 'mission') {
-      gain(g, { stones: 18 + 12 * g.realm, contribution: 22 + 5 * g.sectRank, stats: { health: -6, reputation: 2 } });
-      log(g, '完成宗门委托', '护送物资归山，换来贡献与月例之外的灵石。体魄损耗6。', 'economy');
+      const sect = SECTS.find(s => s.id === g.sect)!;
+      gain(g, sectMissionEffect(g));
+      log(g, '完成宗门委托 · ' + sect.mission.name, sect.mission.description, 'economy');
     } else if (action.job === 'study') {
       if (g.contribution < 20) return '需要20宗门贡献';
-      g.contribution -= 20; gain(g, { progress: 16 + g.realm * 6, stats: { foundation: 5, insight: 3 } });
+      g.contribution -= 20; gain(g, sectStudyEffect(g));
       log(g, '藏经阁参修', '用20贡献换来一次参修，根基与悟性均有所长进。', 'cultivation');
     } else if (action.job === 'promote') {
       if (g.sectRank >= 3) return '已是传功长老';
@@ -528,6 +536,18 @@ function perform(g: Game, action: Action): string | null {
       log(g, '愿同看山河', `你与${npc.name}结为道侣。各自修行，也在岁月中彼此照应。每年道心恢复0.8。`, 'relationship', true);
     } else return '未知的互动';
     npc.lastInteraction = g.age;
+    // A fatal sparring injury is settled before any response; no model reply can undo death.
+    checkLife(g);
+    if (action.interaction !== 'bond') {
+      const responses = npcResponses(g, npc, action.interaction);
+      if (responses.length) {
+        const local = pick(g, responses);
+        const id = directCandidate(g, 'npc', responses.map(({ id, label, description }) => ({ id, label, description })), local.id, director, npc, action.interaction);
+        const response = responses.find(candidate => candidate.id === id)!;
+        gain(g, response.effect);
+        log(g, npc.name + '的回应', response.text, 'relationship');
+      }
+    }
   }
   g.actionsLeft--; checkLife(g); snapshot(g); return null;
 }
@@ -546,10 +566,10 @@ export function autoChoice(g: Game, policy: 'safe' | 'bold' | 'random'): number 
   const score = (choice: Choice) => choice.autoScore + (policy === 'bold' ? (choice.effect.progress ?? 0) / 10 + (choice.chance ? 5 : 0) : 0) - (g.stats.health < 45 && (choice.effect.stats?.health ?? 0) < 0 ? 20 : 0) + (g.stats.mind < 40 ? (choice.effect.stats?.mind ?? 0) / 2 : 0);
   return available.sort((a, b) => score(b.choice) - score(a.choice))[0].index;
 }
-function autoMutate(g: Game, policy: 'safe' | 'bold' | 'random') {
+function autoMutate(g: Game, policy: 'safe' | 'bold' | 'random', director?: DirectorControl) {
   if (!g.alive || g.expeditions?.active) return;
   if (g.pending) { if (!requiresPlayerChoice(g)) resolveChoice(g, autoChoice(g, policy)); return; }
-  if (g.age < 16) { advanceOne(g); return; }
+  if (g.age < 16) { advanceOne(g, director); return; }
   const preparation = preparationState(g);
   const preparing = preparation.selected && preparation.progress[preparation.selected] < preparationTarget(g.realm, preparation.selected);
   if (g.stats.health < (policy === 'bold' ? 40 : 60) || g.stats.mind < 42) g.focus = 'rest';
@@ -562,10 +582,26 @@ function autoMutate(g: Game, policy: 'safe' | 'bold' | 'random') {
   else if (g.progress / REALMS[g.realm].need > 0.75 && g.stats.foundation < 50) g.focus = 'study';
   else if (g.flags.includes('legacy-eclipse') && ['rest', 'work', 'study', 'cultivate'].includes(g.focus)) g.focus = 'adventure';
   else if (['rest', 'work', 'study'].includes(g.focus)) g.focus = 'cultivate';
-  advanceOne(g);
+  advanceOne(g, director);
 }
 export function autoStep(source: Game, policy: 'safe' | 'bold' | 'random'): ActionResult {
   const game = structuredClone(source); autoMutate(game, policy); return { game };
+}
+function runDirectedAction(source: Game, action: DirectedAction, director: DirectorControl): ActionResult {
+  const game = structuredClone(source);
+  if (action.type === 'auto') { autoMutate(game, action.policy, director); return { game }; }
+  const error = perform(game, action, director);
+  return error ? { game: source, error } : { game };
+}
+/** Preview keeps the source untouched. Its result is the complete seeded offline fallback. */
+export function planDirectedAction(source: Game, action: DirectedAction): DirectedPlan {
+  const director: DirectorControl = {};
+  const result = runDirectedAction(source, action, director);
+  return { result, ...(!result.error && director.request ? { request: director.request } : {}) };
+}
+/** Replay an explicit choice against fresh engine conditions; invalid or stale replies fall back. */
+export function commitDirectedAction(source: Game, action: DirectedAction, decision?: DirectorDecision): ActionResult {
+  return runDirectedAction(source, action, { decision });
 }
 export function simulateLife(config: BirthConfig, policy: 'safe' | 'bold' | 'random' = 'safe'): Game {
   const game = createGame(config);

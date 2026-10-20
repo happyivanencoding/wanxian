@@ -1,4 +1,5 @@
 import { REALMS } from './data.ts';
+import { SECTS, sectPassive, type SectBenefits } from './sects.ts';
 import { regionPractice } from './world.ts';
 import type { Effect, Focus, Game, LogKind, Preparation, PreparationMethod } from './types.ts';
 
@@ -18,12 +19,7 @@ const methodNames: Record<PreparationMethod, string[]> = {
 };
 const realmThemes = ['辨认自身气机，准备第一次引气入体', '让经脉承受更稳定的周天，选择怎样筑基', '在凝丹之前，决定自己的丹道底色', '从金丹到元婴，练习承受失利与更漫长的修行', '让元婴与所走过的山河相合，准备化神', '最后一次整理此身所学，准备回答天劫'];
 
-interface Benefits {
-  restHealth: number; restMind: number; training: number; craftChance: number; pillPotency: number;
-  adventureDamage: number; adventureIncome: number; breakthrough: number; failureDamage: number;
-  failureRetention: number; cooldownReduction: number; failedCraftHerbs: number; pillChance: number; workIncome: number;
-  adventureCombat: number; adventureTraining: number; upkeep: number; yearHealth: number; yearReputation: number;
-}
+type Benefits = SectBenefits;
 interface Attainment { id: string; name: string; description: string; bonus?: Partial<Benefits>; aptitude?: number }
 const earned = (realm: number, method: PreparationMethod, name: string, description: string, bonus: Partial<Benefits> = {}, aptitude?: number): Attainment => ({ id: `attainment-${realm}-${method}`, name, description, bonus, aptitude });
 const PREPARATION_ATTAINMENTS: Attainment[] = [
@@ -46,11 +42,7 @@ const PREPARATION_ATTAINMENTS: Attainment[] = [
   earned(5, 'meditate', '观天证道', '你以周天推演完成最后一次准备；飞升时写入此生终卷。'),
   earned(5, 'medicine', '丹炉合道', '你以草木药性完成最后一次准备；飞升时写入此生终卷。'),
 ];
-const SPECIALTIES: Record<string, Attainment & { cost: number }> = {
-  qinglan: { id: 'sect-art-qinglan', name: '青岚剑阵', cost: 100, description: '年度历练伤害减少20%；在相应秘境中可用剑阵破局。传授时另得青岚阵纹剑。离宗后仍会这门本领。', bonus: { adventureDamage: 0.8 } },
-  herb: { id: 'sect-art-herb', name: '百草药理', cost: 80, description: '炼丹成功率增加8个百分点；回春丹、清心丹恢复量增加4；相应同行救援可辨药施救。另得百草药囊，离宗后保留。', bonus: { craftChance: 0.08, pillPotency: 4 } },
-  star: { id: 'sect-art-star', name: '观象诀', cost: 140, description: '突破成功率增加4个百分点；相应星台探索可辨识阵势。另得问星法印，离宗后保留；突破仍受90%上限约束。', bonus: { breakthrough: 0.04 } },
-};
+const SPECIALTIES = Object.fromEntries(SECTS.map(sect => [sect.id, sect.specialty]));
 const EXPEDITION_ATTAINMENTS: Attainment[] = [
   { id: 'exp-spring-clear', name: '清泉息', description: '静养重心每年额外恢复3道心。', bonus: { restMind: 3 } },
   { id: 'exp-spring-vein', name: '地脉吐纳', description: '所有年度重心的基础修炼速度提高8%。', bonus: { training: 1.08 } },
@@ -69,18 +61,34 @@ export function attainedAbilities(g: Game) {
 /** The display and all engine actions read the same permanent abilities. */
 export function progressionBenefits(g: Game): Benefits {
   const value: Benefits = { restHealth: 0, restMind: 0, training: 1, craftChance: 0, pillPotency: 0, adventureDamage: 1, adventureIncome: 1, breakthrough: 0, failureDamage: 1, failureRetention: 0.72, cooldownReduction: 0, failedCraftHerbs: 0, pillChance: 0, workIncome: 0, adventureCombat: 0, adventureTraining: 1, upkeep: 0, yearHealth: 0, yearReputation: 0 };
-  for (const ability of allAttainments) {
-    if (!has(g, ability.id) || !ability.bonus) continue;
-    for (const [key, amount] of Object.entries(ability.bonus) as [keyof Benefits, number][]) {
-      if (['training', 'adventureDamage', 'adventureIncome', 'failureDamage', 'adventureTraining'].includes(key)) value[key] *= amount;
+  const multiply = ['training', 'adventureDamage', 'adventureIncome', 'failureDamage', 'adventureTraining'];
+  const apply = (bonus: Partial<Benefits>) => {
+    for (const [key, amount] of Object.entries(bonus) as [keyof Benefits, number][]) {
+      if (multiply.includes(key)) value[key] *= amount;
       else if (key === 'failureRetention') value[key] = Math.max(value[key], amount);
       else value[key] += amount;
     }
+  };
+  for (const ability of [...PREPARATION_ATTAINMENTS, ...EXPEDITION_ATTAINMENTS]) {
+    if (has(g, ability.id) && ability.bonus) apply(ability.bonus);
   }
+  // Learning another school's solution keeps its narrative uses. Shared numerical
+  // benefits use the strongest school, rather than compounding twenty careers.
+  const school: Partial<Benefits> = {};
+  for (const ability of Object.values(SPECIALTIES)) {
+    if (!has(g, ability.id)) continue;
+    for (const [key, amount] of Object.entries(ability.bonus) as [keyof Benefits, number][]) {
+      if (school[key] === undefined) school[key] = amount;
+      else school[key] = ['adventureDamage', 'failureDamage'].includes(key) ? Math.min(school[key]!, amount) : Math.max(school[key]!, amount);
+    }
+  }
+  apply(school);
+  // These two active-school effects retain their existing engine calculation.
+  const { cultivation: _cultivation, breakthrough: _breakthrough, ...passive } = sectPassive(g);
+  apply(passive);
   if (g.equipped === 'sword') value.adventureCombat += 15;
-  if (g.equipped === 'sect-sword') value.adventureCombat += 24;
-  if (g.equipped === 'sect-satchel') { value.pillPotency += 8; value.craftChance += 0.04; }
-  if (g.equipped === 'sect-seal') value.breakthrough += 0.035;
+  const equipped = SECTS.find(sect => sect.specialty.gear.id === g.equipped)?.specialty.gear;
+  if (equipped) apply(equipped.bonus);
   return value;
 }
 function annualCost(g: Game, method: PreparationMethod) {
@@ -172,9 +180,9 @@ export function learnSectSpecialty(g: Game, ctx: ProgressionContext): string | u
   if (!specialty) return '尚未加入宗门';
   if (!specialty.available) return specialty.reason;
   g.contribution -= specialty.cost;
-  const gear: Record<string, string> = { 'sect-art-qinglan': 'sect-sword', 'sect-art-herb': 'sect-satchel', 'sect-art-star': 'sect-seal' };
-  ctx.gain(g, { flag: specialty.id, item: gear[specialty.id] });
-  ctx.log(g, '学得宗门专长 · ' + specialty.name, `用${specialty.cost}贡献完成传授。${specialty.description}`, 'cultivation', true);
+  const gear = SECTS.find(sect => sect.id === g.sect)!.specialty.gear;
+  ctx.gain(g, { flag: specialty.id, item: gear.id });
+  ctx.log(g, '学得宗门专长 · ' + specialty.name, `用${specialty.cost}贡献完成传授。${specialty.description} 获得${gear.name}，本世只授予一次；离宗后本领保留。`, 'cultivation', true);
 }
 export function companionTraits(g: Game) {
   const traits = [

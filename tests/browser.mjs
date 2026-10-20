@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from 'playwright';
 import { act, autoChoice, createGame, getEvent, requiresPlayerChoice, travelPrice } from '../src/game/engine.ts';
-import { REALMS } from '../src/game/data.ts';
+import { REALMS, SECTS, REGIONS } from '../src/game/data.ts';
 import { SAVE_KEY, newProfile, settleProfile, parseProfile } from '../src/game/storage.ts';
 import { preparationTarget } from '../src/game/progression.ts';
 
@@ -196,6 +196,7 @@ async function install(p, profile = fixture()) {
 
 try {
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, acceptDownloads: true });
+  await context.route('**/api/director/status', route => route.fulfill({ json: { configured: false } }));
   const page = await context.newPage(); watch(page);
   await page.goto(baseURL);
   await check('Desktop landing renders, no overflow or external asset dependency', async () => {
@@ -366,13 +367,14 @@ try {
     assert.equal(arrived.stones, 0);
   });
   await check('Sect admission and mission award actual contributions', async () => {
-    await install(page); await navigate(page, 'sect'); await page.getByTestId('join-qinglan').click();
+    await install(page); await navigate(page, 'sect'); await page.getByTestId('sect-card-qinglan').locator('summary').click(); await page.getByTestId('join-qinglan').click();
     await waitState(page, s => s.game.sect === 'qinglan');
     await page.getByTestId('sect-mission').click(); await waitState(page, s => s.game.contribution === 22);
     await capture(page, '05-sect-desktop');
   });
   await check('Local sect teaching grants a real unique item, shows the learned ability and cannot be purchased again', async () => {
     await install(page); await navigate(page, 'sect');
+    await page.getByTestId('sect-region-river').click(); await page.getByTestId('sect-card-herb').locator('summary').click();
     assert.ok(await page.getByTestId('join-herb').isDisabled());
     const student = fixture(); student.game.region = 'river'; student.game.visited.push('river');
     student.game.sect = 'herb'; student.game.contribution = 80;
@@ -424,8 +426,9 @@ try {
     await capture(page, '05-expedition-result-desktop');
   });
   await check('Companion interaction is bounded per year and biography data can be exported', async () => {
-    await install(page); await navigate(page, 'people'); const before = (await state(page)).game.npcs[0].relation;
-    await page.getByTestId('talk-peer-0').click(); await waitState(page, s => s.game.npcs[0].relation === before + 7);
+    await install(page); await navigate(page, 'people'); const before = (await state(page)).game;
+    const expected = act(before, { type: 'npc', id: 'peer-0', interaction: 'talk' }).game;
+    await page.getByTestId('talk-peer-0').click(); await waitState(page, s => s.game.npcs[0].relation === expected.npcs[0].relation);
     assert.ok(await page.getByTestId('talk-peer-0').isDisabled());
     await navigate(page, 'chronicle');
     const downloadPromise = page.waitForEvent('download'); await page.getByTestId('export-chronicle').click();
@@ -566,8 +569,74 @@ try {
   });
   await context.close();
 
+  const directed = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  await directed.route('**/api/director/status', route => route.fulfill({ json: { configured: true } }));
+  let directorMode = 'valid', directorCalls = 0, releaseReply;
+  await directed.route('**/api/director/decide', async route => {
+    directorCalls++;
+    const request = route.request().postDataJSON();
+    if (directorMode === 'delayed') await new Promise(resolve => { releaseReply = resolve; });
+    const candidateId = directorMode === 'invalid' ? 'invented-reward' : request.candidates.find(item => item.id === 'medicine')?.id || request.candidates[0].id;
+    await route.fulfill({ json: { source: 'startlux', decision: { kind: request.kind, age: request.age, actorId: request.actorId, candidateId, source: 'startlux' } } }).catch(() => {});
+  });
+  const dp = await directed.newPage(); watch(dp); await dp.goto(baseURL);
+  await check('StartLux chooses a legal NPC response with real effects and persists the source', async () => {
+    const scenario = fixture();
+    await install(dp, scenario); await navigate(dp, 'people');
+    await dp.getByTestId('talk-peer-1').click();
+    const after = (await waitState(dp, p => p.game.directorRecords?.at(-1)?.source === 'startlux')).game;
+    assert.equal(after.directorRecords.at(-1).candidateId, 'medicine');
+    assert.equal(after.inventory.herb, scenario.game.inventory.herb + 1);
+    assert.equal(after.actionsLeft, scenario.game.actionsLeft - 1);
+    await dp.getByTestId('open-settings').click();
+    assert.match(await dp.getByTestId('director-last-source').innerText(), /StartLux/);
+    await noOverflow(dp, 'mobile director settings'); await capture(dp, '13-director-settings'); await close(dp);
+  });
+  await check('Invalid online decisions and a disconnected browser both complete through local rules', async () => {
+    directorMode = 'invalid';
+    const scenario = fixture(), expected = act(scenario.game, { type: 'npc', id: 'peer-1', interaction: 'talk' }).game;
+    await install(dp, scenario); await navigate(dp, 'people'); await dp.getByTestId('talk-peer-1').click();
+    await waitState(dp, p => p.game.npcs[1].lastInteraction === scenario.game.age);
+    assert.deepEqual((await state(dp)).game, expected);
+    await install(dp, scenario); await navigate(dp, 'people');
+    const callsBefore = directorCalls; await directed.setOffline(true);
+    await dp.getByTestId('talk-peer-1').click();
+    await waitState(dp, p => p.game.npcs[1].lastInteraction === scenario.game.age);
+    assert.deepEqual((await state(dp)).game, expected); assert.equal(directorCalls, callsBefore);
+    await directed.setOffline(false);
+  });
+  await check('A late online reply cannot spend an action or alter a newly imported life', async () => {
+    directorMode = 'delayed'; releaseReply = undefined;
+    await install(dp); await navigate(dp, 'people'); await dp.getByTestId('talk-peer-1').click();
+    for (let i = 0; i < 50 && !releaseReply; i++) await dp.waitForTimeout(20);
+    assert.equal(typeof releaseReply, 'function');
+    const replacement = fixture(); replacement.game.name = '新载入的人生';
+    await install(dp, replacement); releaseReply(); await dp.waitForTimeout(100);
+    assert.deepEqual((await state(dp)).game, replacement.game);
+  });
+  await directed.close();
+
+  if (process.env.STARTLUX_LIVE === '1') {
+    const live = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true });
+    const lp = await live.newPage(); watch(lp); await lp.goto(baseURL);
+    await check('Live configured StartLux proxy selects and commits a real NPC response', async () => {
+      const scenario = fixture(); scenario.game.stats.health = 45;
+      await install(lp, scenario); await navigate(lp, 'people');
+      const began = performance.now();
+      await lp.getByTestId('talk-peer-1').click();
+      await lp.waitForFunction(key => JSON.parse(localStorage.getItem(key)).game.directorRecords?.length > 0, SAVE_KEY, { timeout: 6500 });
+      const after = (await state(lp)).game;
+      assert.equal(after.directorRecords.at(-1).source, 'startlux');
+      assert.equal(after.actionsLeft, scenario.game.actionsLeft - 1);
+      results.push({ name: 'Live StartLux response evidence', record: after.directorRecords.at(-1), milliseconds: Math.round(performance.now() - began), model: 'startlux-decision-27b-autothink' });
+      await lp.getByTestId('open-settings').click(); await capture(lp, '14-live-startlux');
+    });
+    await live.close();
+  }
+
   for (const width of [390, 360, 320]) {
     const mobile = await browser.newContext({ viewport: { width, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 1 });
+    await mobile.route('**/api/director/status', route => route.fulfill({ json: { configured: false } }));
     const p = await mobile.newPage(); watch(p); await p.goto(baseURL);
     await check(`Mobile ${width}px landing and birth dialog are reachable`, async () => {
       await noOverflow(p, 'mobile landing');
@@ -621,6 +690,25 @@ try {
       assert.ok((await p.getByTestId('story-effects').innerText()).length > 20);
       await noOverflow(p, `mobile ${width} story consequence`);
       if (width === 390) await capture(p, '11-mobile-story', true);
+    });
+    await check(`Mobile ${width}px shows four local sects and all twenty regional cultures`, async () => {
+      await install(p); await navigate(p, 'sect');
+      assert.equal(await p.locator('[data-testid^="sect-card-"]').count(), 4);
+      for (const region of REGIONS) {
+        await p.getByTestId(`sect-region-${region.id}`).click();
+        const local = SECTS.filter(sect => sect.home === region.id);
+        assert.equal(await p.locator('[data-testid^="sect-card-"]').count(), 4);
+        for (const sect of local) {
+          const card = p.getByTestId(`sect-card-${sect.id}`);
+          await card.locator('summary').click();
+          assert.ok((await card.innerText()).includes(sect.specialty.name));
+          assert.equal(await p.getByTestId(`join-${sect.id}`).isDisabled(), region.id !== 'qinglan' || sect.minRealm > 2 || sect.reputation > 55);
+          await noOverflow(p, `mobile ${width} ${sect.name}`); await card.locator('summary').click();
+        }
+      }
+      await p.getByTestId('sect-region-qinglan').click();
+      await p.getByTestId('sect-card-cloudledger').locator('summary').click();
+      if (width === 390) await capture(p, '15-local-sects-mobile', true);
     });
     await check(`Mobile ${width}px a three-stage expedition saves, reloads and shows its result`, async () => {
       await completeSpringThroughUI(p, `mobile ${width}`);

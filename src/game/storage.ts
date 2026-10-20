@@ -3,12 +3,13 @@ import { EVENT_MAP } from './events.ts';
 import { archiveLife, earnedAchievements } from './engine.ts';
 import { isValidExpeditions } from './expeditions.ts';
 import { PREPARATION_METHODS, preparationTarget } from './progression.ts';
+import { NPC_RESPONSE_IDS } from './director.ts';
 import type { Game, Profile } from './types.ts';
 
 export const SAVE_KEY = 'wanxian-life:profile:v1';
 export const BACKUP_KEY = 'wanxian-life:previous:v1';
 export function newProfile(): Profile {
-  return { version: 1, game: null, archives: [], slots: [null, null, null], settings: { theme: 'light', speed: 1, durationMinutes: 30, policy: 'safe', reducedMotion: false }, achievements: [] };
+  return { version: 1, game: null, archives: [], slots: [null, null, null], settings: { theme: 'light', speed: 1, durationMinutes: 30, policy: 'safe', reducedMotion: false, directorEnabled: true }, achievements: [] };
 }
 type ObjectValue = Record<string, unknown>;
 const object = (v: unknown): v is ObjectValue => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -46,6 +47,15 @@ export function validGame(value: unknown): value is Game {
     if (Object.keys(progress).length !== PREPARATION_METHODS.length || !PREPARATION_METHODS.every(method => number(progress[method], 0, preparationTarget(p.realm as number, method)))) return false;
   }
   if (!isValidExpeditions(g.expeditions, g as unknown as Game)) return false;
+  if (g.directorRecords !== undefined) {
+    if (!Array.isArray(g.directorRecords) || g.directorRecords.length > 64 || !g.directorRecords.every(record => {
+      if (!object(record) || Object.keys(record).some(key => !['kind', 'age', 'actorId', 'candidateId', 'source'].includes(key))) return false;
+      if (!number(record.age, 0, g.age as number) || !Number.isInteger(record.age) || !text(record.candidateId) || !['local', 'startlux'].includes(record.source as string)) return false;
+      if (record.kind === 'npc') return NPC_RESPONSE_IDS.includes(record.candidateId as typeof NPC_RESPONSE_IDS[number]) && (g.npcs as Game['npcs']).some(npc => npc.id === record.actorId);
+      const event = EVENT_MAP[record.candidateId];
+      return record.kind === 'event' && record.actorId === undefined && Boolean(event) && typeof event.id === 'string' && event.kind !== 'turning' && event.kind !== 'routine' && !event.id.startsWith('story-') && !event.id.startsWith('fate-');
+    })) return false;
+  }
   return typeof g.alive === 'boolean' && (g.ending === null || text(g.ending)) && (!g.alive || (g.ending === null && g.realm < 6));
 }
 export function parseProfile(raw: string): Profile {
@@ -56,9 +66,9 @@ export function parseProfile(raw: string): Profile {
   if (value.game !== null && !validGame(value.game)) throw new Error('人物存档字段不完整或数值无效，未进行导入。');
   if (!Array.isArray(value.slots) || value.slots.length !== 3 || !value.slots.every(s => s === null || (object(s) && text(s.name) && text(s.savedAt) && validGame(s.game)))) throw new Error('手动存档槽损坏，未进行导入。');
   if (!Array.isArray(value.archives) || value.archives.length > 30 || !value.archives.every(a => object(a) && ['id', 'name', 'origin', 'route', 'ending', 'endingText', 'legacy', 'date'].every(k => text(a[k])) && number(a.age, 0, 10000) && number(a.realm, 0, 6) && Number.isInteger(a.realm) && number(a.totalStones) && number(a.choices) && Array.isArray(a.logs) && a.logs.every(validLog))) throw new Error('前世记录不完整，未进行导入。');
-  if (!object(value.settings) || !['light', 'dark'].includes(value.settings.theme as string) || ![1, 2, 4, 8].includes(value.settings.speed as number) || (value.settings.durationMinutes !== undefined && ![30, 60].includes(value.settings.durationMinutes as number)) || !['safe', 'bold', 'random'].includes(value.settings.policy as string) || typeof value.settings.reducedMotion !== 'boolean' || !strings(value.achievements)) throw new Error('存档设置无效，未进行导入。');
+  if (!object(value.settings) || !['light', 'dark'].includes(value.settings.theme as string) || ![1, 2, 4, 8].includes(value.settings.speed as number) || (value.settings.durationMinutes !== undefined && ![30, 60].includes(value.settings.durationMinutes as number)) || (value.settings.directorEnabled !== undefined && typeof value.settings.directorEnabled !== 'boolean') || !['safe', 'bold', 'random'].includes(value.settings.policy as string) || typeof value.settings.reducedMotion !== 'boolean' || !strings(value.achievements)) throw new Error('存档设置无效，未进行导入。');
   const profile = value as unknown as Profile;
-  return { ...profile, settings: { ...profile.settings, durationMinutes: profile.settings.durationMinutes ?? 30 } };
+  return { ...profile, settings: { ...profile.settings, durationMinutes: profile.settings.durationMinutes ?? 30, directorEnabled: profile.settings.directorEnabled ?? true } };
 }
 export function settleProfile(profile: Profile, game: Game): Profile {
   let archives = profile.archives;

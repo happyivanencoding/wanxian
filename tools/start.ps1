@@ -10,6 +10,17 @@ function Get-LocalPage {
     try { return Invoke-WebRequest -Uri 'http://127.0.0.1:5188' -TimeoutSec 4 -UseBasicParsing } catch { return $null }
 }
 
+function Show-DirectorStatus {
+    try {
+        $director = Invoke-RestMethod -Uri 'http://127.0.0.1:5188/api/director/status' -TimeoutSec 3
+        if ($director.provider -ne 'StartLux') { throw 'No director endpoint' }
+        if ($director.configured) { Write-Output 'StartLux: configured. Local rules continue if its service is unavailable.' }
+        else { Write-Output 'StartLux: no server key configured; the game uses local rules.' }
+    } catch {
+        Write-Warning 'The existing preview has no StartLux endpoint. Restart this game preview to enable the new helper; local play remains available. No process was stopped.'
+    }
+}
+
 function Test-LanAccess {
     foreach ($address in $lanAddresses) {
         try {
@@ -63,6 +74,7 @@ try {
     }
     if (-not $NoBrowser) { Start-Process $url }
     Write-Output "Wanxian Life ready: $url"
+    Show-DirectorStatus
     if ($Lan) {
         if (-not (Test-LanAccess)) {
             throw 'The LAN address did not respond. Check that Node.js is allowed on the current network.'

@@ -5432,6 +5432,39 @@ button:not(:disabled):active {
 }
 .preparation-panel .compact-panel-title>div { min-width:0; }
 .preparation-panel .preparation-manage { flex-shrink:0; min-height:44px; font-size:14px; padding:9px 12px; }
+.sect-directory { margin:24px 0; }
+.sect-region-picker { flex-wrap:wrap; margin:16px 0; gap:8px; }
+.sect-region-picker button { min-height:44px; white-space:normal; }
+.sect-local-intro { display:flex; align-items:center; justify-content:space-between; gap:16px; margin:16px 0; }
+.sect-local-intro h3 { font:600 22px/1.5 var(--serif); margin-bottom:4px; }
+.sect-local-intro p { color:var(--muted); font-size:14px; line-height:1.8; }
+.sect-local-intro>.button { flex-shrink:0; }
+.sect-compact-card { padding:0; margin:12px 0; overflow:hidden; }
+.sect-compact-summary { display:flex; align-items:center; gap:14px; padding:17px 20px; min-height:76px; cursor:pointer; list-style:none; }
+.sect-compact-summary::-webkit-details-marker { display:none; }
+.sect-compact-summary::after { content:'＋'; color:var(--jade); margin-left:auto; flex-shrink:0; font-size:20px; }
+details[open]>.sect-compact-summary::after { content:'−'; }
+.sect-compact-mark { display:grid; place-items:center; width:44px; height:44px; flex-shrink:0; border:1px solid var(--line); border-radius:50%; color:var(--jade); font:600 21px var(--serif); }
+.sect-compact-name { min-width:0; }
+.sect-compact-name strong { display:block; font:600 19px/1.5 var(--serif); }
+.sect-compact-name small { display:block; color:var(--muted); font-size:13px; line-height:1.7; margin-top:4px; }
+.sect-compact-body { padding:0 20px 16px; border-bottom:1px solid var(--line); }
+.sect-compact-body p { font-size:14px; line-height:1.85; color:var(--muted); margin-bottom:12px; }
+.sect-compact-body p strong { color:var(--ink); }
+.sect-entry-line { display:flex; flex-wrap:wrap; gap:8px 16px; font-size:13px; color:var(--muted); padding:12px 20px; }
+.sect-directory-actions { display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:0 20px 16px; }
+.sect-directory-actions .button { min-height:44px; }
+@media(max-width:640px) {
+  .sect-region-picker button { flex:1 1 42%; padding:9px; font-size:13px; }
+  .sect-local-intro { align-items:stretch; flex-direction:column; gap:10px; }
+  .app-shell.in-game .sect-compact-card { padding:0; }
+  .sect-compact-summary { gap:10px; padding:14px 12px; }
+  .sect-compact-name strong { font-size:18px; }
+  .sect-compact-name small { font-size:13px; line-height:1.75; }
+  .sect-compact-body { padding:0 12px 12px; }
+  .sect-entry-line { padding:12px; font-size:13px; }
+  .sect-directory-actions { padding:0 12px 14px; }
+}
 @media(max-width:640px) {
   .preparation-panel .compact-panel-title { gap:10px; }
   .preparation-panel .preparation-manage { font-size:14px; min-height:44px; }

@@ -12,6 +12,17 @@ export interface ExpeditionState {
   active?: { id: string; stage: number; marks: string[]; companionId?: string; startedAge: number };
   completed: { id: string; outcome: string; title: string; text: string; age: number }[];
 }
+export interface DirectorCandidate { id: string; label: string; description: string }
+export interface DirectorRequest {
+  kind: 'event' | 'npc'; age: number; actorId?: string;
+  context: Record<string, unknown>; candidates: DirectorCandidate[];
+}
+export interface DirectorDecision {
+  kind: 'event' | 'npc'; age: number; actorId?: string; candidateId: string; source: 'startlux';
+}
+export interface DirectorRecord {
+  kind: 'event' | 'npc'; age: number; actorId?: string; candidateId: string; source: 'startlux' | 'local';
+}
 export interface Game {
   version: 1; id: string; seed: number; rng: number; name: string; gender: string; origin: string; era: string; root: string; aptitude: number; talent: string; route: string;
   age: number; realm: number; progress: number; lifespan: number; stones: number; stats: Stats; focus: Focus; region: string;
@@ -19,7 +30,7 @@ export interface Game {
   flags: string[]; seen: Record<string, number>; pending: string | null; delayed: Delayed[]; npcs: NPC[]; logs: Log[]; snapshots: Snapshot[];
   actionsLeft: number; cooldownUntil: number; attempts: number; successes: number; totalStones: number; visited: string[]; choices: number;
   alive: boolean; ending: string | null; endingText: string; yearName: string; logSeq: number;
-  preparation?: Preparation; expeditions?: ExpeditionState;
+  preparation?: Preparation; expeditions?: ExpeditionState; directorRecords?: DirectorRecord[];
 }
 export interface Effect {
   stats?: Partial<Stats>; stones?: number; progress?: number; lifespan?: number; contribution?: number;
@@ -30,7 +41,7 @@ export interface Choice { label: string; hint: string; effect: Effect; cost?: nu
 export interface EventDef { id: string; title: string; text: string; category: LogKind; kind?: 'routine' | 'opportunity' | 'turning'; cause?: string; minAge?: number; maxAge?: number; minRealm?: number; maxRealm?: number; focus?: Focus; region?: string; flag?: string; notFlag?: string; sect?: boolean; cooldown?: number; once?: boolean; weight?: number; choices: Choice[] }
 export interface BirthConfig { name: string; gender: string; origin: string; era: string; route: string; region?: string; mode: 'seeker' | 'all'; fastStart: boolean; seed: string }
 export interface LifeRecord { id: string; name: string; age: number; realm: number; origin: string; route: string; ending: string; endingText: string; totalStones: number; choices: number; legacy: string; logs: Log[]; date: string }
-export interface Profile { version: 1; game: Game | null; archives: LifeRecord[]; slots: ({ name: string; savedAt: string; game: Game } | null)[]; settings: { theme: 'light' | 'dark'; speed: number; durationMinutes: 30 | 60; policy: 'safe' | 'bold' | 'random'; reducedMotion: boolean }; achievements: string[] }
+export interface Profile { version: 1; game: Game | null; archives: LifeRecord[]; slots: ({ name: string; savedAt: string; game: Game } | null)[]; settings: { theme: 'light' | 'dark'; speed: number; durationMinutes: 30 | 60; policy: 'safe' | 'bold' | 'random'; reducedMotion: boolean; directorEnabled?: boolean }; achievements: string[] }
 export type Action =
  | { type: 'advance'; years?: number }
  | { type: 'focus'; focus: Focus }
@@ -52,3 +63,5 @@ export type Action =
  | { type: 'star'; id: number }
  | { type: 'retire' };
 export interface ActionResult { game: Game; message?: string; error?: string }
+export type DirectedAction = Action | { type: 'auto'; policy: 'safe' | 'bold' | 'random' };
+export interface DirectedPlan { result: ActionResult; request?: DirectorRequest }

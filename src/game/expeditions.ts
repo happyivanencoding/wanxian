@@ -1,4 +1,5 @@
 import { REGIONS } from './data.ts';
+import { hasSectArt } from './sects.ts';
 import type { Action, Effect, ExpeditionState, Game, LogKind } from './types.ts';
 
 type Active = NonNullable<ExpeditionState['active']>;
@@ -13,10 +14,10 @@ export interface ExpeditionContext {
 export interface ExpeditionChoice { id: string; label: string; hint: string; disabled?: string }
 export interface ExpeditionOffer { id: string; title: string; description: string; available: boolean; reason?: string; cost: number; risk: string; region: string }
 const definitions = {
-  spring: { title: '雾隐泉 · 洞天初开', minRealm: 1, maxRealm: 2, cost: 18, risk: '中险；泉眼深处可能重伤、损失当前修为', description: '山雨冲开一道石缝，泉水逆着岩壁流动。附近采药人都绕开了那片不散的雾。', marks: ['map', 'medicine', 'healer', 'guide', 'supplies', 'settled', 'turbulent', 'wounded'], outcomes: ['clear', 'vein', 'scarred', 'withdrawn'] },
-  rescue: { title: '折梅谷 · 一封血书', minRealm: 1, maxRealm: 3, cost: 24, risk: '中险；毒瘴与坍塌可能造成重伤、修为折损', description: '熟悉的笔迹只剩半行，信纸上还沾着折梅谷的黑色花粉。送信人说，药师被困在废弃药库。', marks: ['medicine', 'ledger', 'guard', 'haste', 'treated', 'passage', 'forced'], outcomes: ['healer', 'cache', 'prescription', 'scarred', 'withdrawn'] },
+  spring: { title: '雾隐泉 · 洞天初开', minRealm: 1, maxRealm: 2, cost: 18, risk: '中险；泉眼深处可能重伤、损失当前修为', description: '山雨冲开一道石缝，泉水逆着岩壁流动。附近采药人都绕开了那片不散的雾。', marks: ['map', 'medicine', 'healer', 'guide', 'pathcraft', 'supplies', 'settled', 'turbulent', 'wounded'], outcomes: ['clear', 'vein', 'scarred', 'withdrawn'] },
+  rescue: { title: '折梅谷 · 一封血书', minRealm: 1, maxRealm: 3, cost: 24, risk: '中险；毒瘴与坍塌可能造成重伤、修为折损', description: '熟悉的笔迹只剩半行，信纸上还沾着折梅谷的黑色花粉。送信人说，药师被困在废弃药库。', marks: ['medicine', 'ledger', 'ledger-study', 'guard', 'haste', 'treated', 'passage', 'forced'], outcomes: ['healer', 'cache', 'prescription', 'scarred', 'withdrawn'] },
   tomb: { title: '照夜剑冢 · 无主之锋', minRealm: 2, maxRealm: 4, cost: 55, risk: '高险；剑气可能重创体魄，强行试剑会折损修为', description: '荒原下的剑冢重见天日。石碑写的不是墓主姓名，而是历代守阵人的遗言。', marks: ['sword', 'guard', 'glyph', 'ward', 'victory', 'clash', 'still'], outcomes: ['sword', 'ward', 'sacrifice', 'withdrawn'] },
-  observatory: { title: '无昼台 · 天机遗府', minRealm: 3, maxRealm: 5, cost: 100, risk: '极险；强留崩解中的阵心可能重伤甚至陨落，并折损大量当前修为', description: '一处旧日线索指向没有昼夜的高台。台阶上的刻痕，与你曾经见过的纹路相合。', marks: ['stars', 'spring', 'guide', 'notes', 'lens', 'anchor', 'balanced'], outcomes: ['chart', 'anchor', 'confluence', 'fracture', 'eclipse', 'withdrawn'] },
+  observatory: { title: '无昼台 · 天机遗府', minRealm: 3, maxRealm: 5, cost: 100, risk: '极险；强留崩解中的阵心可能重伤甚至陨落，并折损大量当前修为', description: '一处旧日线索指向没有昼夜的高台。台阶上的刻痕，与你曾经见过的纹路相合。', marks: ['stars', 'spring', 'guide', 'pathcraft', 'notes', 'lens', 'anchor', 'balanced'], outcomes: ['chart', 'anchor', 'confluence', 'fracture', 'eclipse', 'withdrawn'] },
 } as const;
 type ExpeditionId = keyof typeof definitions;
 const ids = Object.keys(definitions) as ExpeditionId[];
@@ -34,7 +35,10 @@ function friendReason(g: Game, id: string): string | undefined {
   return !npc?.alive ? '这位同道已不在人间' : !friendReady(g, id) ? `情谊需达到${has(g, `companion-bond:${id}`) ? 55 : 60}` : undefined;
 }
 const name = (g: Game, id: string) => peer(g, id)?.name ?? '旧识';
-const art = (g: Game, id: string) => has(g, `sect-art-${id}`);
+const art = (g: Game, id: 'qinglan' | 'herb' | 'star') => hasSectArt(g, { qinglan: 'sword', herb: 'medicine', star: 'formation' }[id] as 'sword' | 'medicine' | 'formation');
+const guided = (a: Active) => marked(a, 'guide') || marked(a, 'pathcraft');
+const readLedger = (a: Active) => marked(a, 'ledger') || marked(a, 'ledger-study');
+const bearsImpact = (g: Game, a: Active) => marked(a, 'guard') || art(g, 'qinglan') || hasSectArt(g, 'body');
 const money = (g: Game, cost: number) => g.stones < cost ? `需要 ${cost} 灵石` : undefined;
 const herbs = (g: Game, count: number) => (g.inventory.herb ?? 0) < count ? `需要 ${count} 株灵草` : undefined;
 const choice = (id: string, label: string, hint: string, disabled?: string): ExpeditionChoice => ({ id, label, hint, ...(disabled ? { disabled } : {}) });
@@ -63,14 +67,15 @@ function scene(g: Game, a: Active): { text: string; choices: ExpeditionChoice[] 
   if (a.id === 'spring') {
     if (a.stage === 0) return { text: '青衡洲青岚九府的泉守虞婆递给你半截水路图。她年老后不再入山，只想知道近年为何连草根都开始石化。雾中的水声时远时近；入洞之前，你还有时间做一件准备。', choices: [
       choice('map', '伏在石壁前补全水路图', '耗费 4 道心；记下支流与出口'),
-      choice('medicine', '以药性辨认泉中浊气', '使用 2 株灵草；百草谷所学或丹术 25 可辨药性', !art(g, 'herb') && g.stats.alchemy < 25 ? '需要百草药理或丹术 25' : herbs(g, 2)),
+      choice('medicine', '以药性辨认泉中浊气', '使用 2 株灵草；医药本领或丹术 25 可辨药性', !art(g, 'herb') && g.stats.alchemy < 25 ? '需要医药本领或丹术 25' : herbs(g, 2)),
       choice('healer', `请${name(g, 'peer-1')}同行照看经脉`, '可信的药师带来辨药经验，不必自己学会丹术', friendReason(g, 'peer-1')),
+      ...(hasSectArt(g, 'pathfinder') ? [choice('pathcraft', '依门中辨路法，独自勘定水路', '道心 −4；以已学本领辨认支流与退路')] : []),
       choice('guide', `请${name(g, 'peer-2')}循水探路`, '可信的寻路同道可以一起进入', friendReason(g, 'peer-2')),
       choice('supplies', '备好绳索与护身灯', '灵石 −12；先保住退路', money(g, 12)),
     ] };
-    if (a.stage === 1) return { text: `${together}石闸后的水流骤然分成两股，一股清冷，一股把碎石碾成粉末。${marked(a, 'map') ? '你认出图上曾被涂去的一条排水道。' : marked(a, 'healer') ? '药师拦住了你，先用药粉试出浑水里的侵蚀。' : marked(a, 'medicine') ? '你带来的药粉在浑浊水流上结成了黑色薄膜。' : marked(a, 'guide') ? '同伴已在暗处找到能落脚的石阶。' : '入口的绳索仍绷在你的手中。'}你需要先接近泉台。`, choices: [
-      choice('channel', '一点点引开支流', `体魄 −${marked(a, 'map') || marked(a, 'guide') ? 2 : 8}；沿外沿稳妥接近`),
-      choice('read', '以问星阁观息法等候水势相交', '辨认灵息空隙，无须强闯', !art(g, 'star') ? '尚未掌握观象诀' : undefined),
+    if (a.stage === 1) return { text: `${together}石闸后的水流骤然分成两股，一股清冷，一股把碎石碾成粉末。${marked(a, 'map') ? '你认出图上曾被涂去的一条排水道。' : marked(a, 'healer') ? '药师拦住了你，先用药粉试出浑水里的侵蚀。' : marked(a, 'medicine') ? '你带来的药粉在浑浊水流上结成了黑色薄膜。' : marked(a, 'pathcraft') ? '你凭辨路所学找到暗处能落脚的石阶。' : marked(a, 'guide') ? '同伴已在暗处找到能落脚的石阶。' : '入口的绳索仍绷在你的手中。'}你需要先接近泉台。`, choices: [
+      choice('channel', '一点点引开支流', `体魄 −${marked(a, 'map') || guided(a) ? 2 : 8}；沿外沿稳妥接近`),
+      choice('read', '以所学识阵之法等候水势相交', '辨认灵息空隙，无须强闯', !art(g, 'star') ? '尚未掌握识阵本领' : undefined),
       choice('plunge', '趁水势回落，穿过急流', '有受伤风险；熟悉水路、药性或有同伴引路会更稳妥'),
     ] };
     return { text: `${together}${marked(a, 'wounded') ? '急流伤了经脉，你终于抓住泉台边缘。' : '你站上泉台，呼吸渐渐与泉水同拍。'}外池灵息温和，深处却有一道直通地底的细缝。石闸已经开始回落，泉眼只能承受一次尝试。`, choices: [
@@ -81,32 +86,33 @@ function scene(g: Game, a: Active): { text: string; choices: ExpeditionChoice[] 
   if (a.id === 'rescue') {
     const target = name(g, 'peer-1');
     if (a.stage === 0) return { text: `${target}的信到了沧溟洲渡潮盟的水驿。库吏陶半夏划船送你到折梅谷，说药师是为核查被克扣的救济药材而来，塌方后带着一群伤者躲进旧药库。你检查行囊，决定怎样入谷。`, choices: [
-      choice('medicine', '带上解瘴药草，先循药味找人', `灵草 −${art(g, 'herb') ? 1 : 3}；百草药理能减少用药`, herbs(g, art(g, 'herb') ? 1 : 3)),
+      choice('medicine', '带上解瘴药草，先循药味找人', `灵草 −${art(g, 'herb') ? 1 : 3}；医药本领能减少用药`, herbs(g, art(g, 'herb') ? 1 : 3)),
+      ...(hasSectArt(g, 'ledger') ? [choice('ledger-study', '亲自以勘契所学核对旧货路', '道心 −4；以已学本领核对契副与运输记号')] : []),
       choice('ledger', `请${name(g, 'peer-0')}核对旧货路`, '可信的盘账同道能认出药库与商道的联系', friendReason(g, 'peer-0')),
       choice('guard', `与${name(g, 'peer-3')}结伴开路`, '可信的护阵同道同行，替你照看身后的退路', friendReason(g, 'peer-3')),
       choice('haste', '不等天亮，沿血迹赶进去', '体魄 −8；带着现有行囊立刻出发'),
     ] };
     if (a.stage === 1) return { text: `${together}你找到了${target}。${target}把伤者安置在石台上，自己却中了瘴毒。药库内墙还在开裂，地上散落着写有工钱和药材去向的账页。`, choices: [
       choice('treat', '先解瘴毒，再护送伤者穿过内廊', marked(a, 'medicine') || art(g, 'herb') ? '已有药性准备，可稳住众人的伤势' : '再消耗 3 株灵草调配解药', marked(a, 'medicine') || art(g, 'herb') ? undefined : herbs(g, 3)),
-      choice('passage', '循旧货路，从运输暗门转移', '灵石 −20，购买支撑暗道的工具；需要旧账线索或观象诀', !marked(a, 'ledger') && !art(g, 'star') ? '尚未看懂药库旧货路' : money(g, 20)),
-      choice('force', '顶住落石，背着故友冲过塌方', `体魄 −${marked(a, 'guard') || art(g, 'qinglan') ? 8 : 20}；护阵同伴或青岚剑阵能分担冲击`),
+      choice('passage', '循旧货路，从运输暗门转移', '灵石 −20，购买支撑暗道的工具；需要旧账线索或识阵本领', !readLedger(a) && !art(g, 'star') ? '尚未看懂药库旧货路' : money(g, 20)),
+      choice('force', '顶住落石，背着故友冲过塌方', `体魄 −${bearsImpact(g, a) ? 8 : 20}；护阵同伴、剑道或炼体本领能分担冲击`),
     ] };
-    return { text: `${target}和伤者已来到谷口，往外就是安全的山道。${marked(a, 'treated') ? '故友恢复了一些力气，把未写完的药方压在你的手心。' : '故友仍在咳嗽，却坚持清点每一位离开的人。'}你看见暗门后的火光正在逼近旧药库。${marked(a, 'ledger') || marked(a, 'passage') ? '散落的旧账让你看懂了这里曾怎样供养附近村落。' : ''}`, choices: [
+    return { text: `${target}和伤者已来到谷口，往外就是安全的山道。${marked(a, 'treated') ? '故友恢复了一些力气，把未写完的药方压在你的手心。' : '故友仍在咳嗽，却坚持清点每一位离开的人。'}你看见暗门后的火光正在逼近旧药库。${readLedger(a) || marked(a, 'passage') ? '散落的旧账让你看懂了这里曾怎样供养附近村落。' : ''}`, choices: [
       choice('healer', '扶着故友回去，把伤慢慢养好', '所有人都已脱险；收束这次救援'),
-      choice('cache', '与谷外村民接管尚能使用的药库', '灵石 −30；先安置伤者，再修缮谷口库房', !marked(a, 'ledger') && !marked(a, 'passage') ? '缺少药库经营与货路的线索' : money(g, 30)),
+      choice('cache', '与谷外村民接管尚能使用的药库', '灵石 −30；先安置伤者，再修缮谷口库房', !readLedger(a) && !marked(a, 'passage') ? '缺少药库经营与货路的线索' : money(g, 30)),
       choice('prescription', '把伤者托付谷外，再取回药师的旧方匣', '自愿重返火场；可能伤及 24 体魄、损失 30% 当前修为；解毒准备或护阵同伴会提高把握'),
     ] };
   }
   if (a.id === 'tomb') {
     if (a.stage === 0) return { text: '玄朔洲古断雪剑庭的遗址里，风雪吹去两座石像上的薄灰：一人持剑，一人举盾。残碑只记着守阵人谢停霜的愿望——让手无寸铁的人先走。冢门里不断传来金铁声，你得先决定如何应对残存的剑意。', choices: [
-      choice('sword', '以自己的剑意回应冢门', '需要青岚剑阵或战技 45；道心 −5', !art(g, 'qinglan') && g.stats.combat < 45 ? '需要青岚剑阵或战技 45' : undefined),
+      choice('sword', '以自己的剑意回应冢门', '需要剑道本领或战技 45；道心 −5', !art(g, 'qinglan') && g.stats.combat < 45 ? '需要剑道本领或战技 45' : undefined),
       choice('guard', `邀请${name(g, 'peer-3')}互为护阵`, '可信的护阵同道一起入冢', friendReason(g, 'peer-3')),
       choice('glyph', '抄下碑文，对照石像的遗言', '道心 −6；先读懂守阵人留下的文字'),
     ] };
     if (a.stage === 1) return { text: `${together}冢内重现了最后一战的残影。守阵人挡在一群没有兵器的人面前，持剑者却正在斩断同伴的退路。${marked(a, 'glyph') ? '你从拓本认出：两人原来是同门。' : '剑意卷着碎石向你压来。'}你可以选择承接哪一道残意。`, choices: [
       choice('ward', '站到守阵人身边，接住这一击', `体魄 −${marked(a, 'guard') || marked(a, 'glyph') ? 5 : 12}；稳住身后的石台`),
       choice('duel', '迎向持剑者，亲自拆解剑招', '可能被剑意震伤；剑术准备与护阵同伴能提高把握'),
-      choice('still', '用观息法找出残影反复重演的间隙', '需要观象诀；避开正面交锋', !art(g, 'star') ? '尚未掌握观象诀' : undefined),
+      choice('still', '用观息法找出残影反复重演的间隙', '需要识阵本领；避开正面交锋', !art(g, 'star') ? '尚未掌握识阵本领' : undefined),
     ] };
     return { text: `${together}${marked(a, 'victory') ? '你拆开最后一剑，持剑残影终于低下剑尖。' : marked(a, 'clash') ? '剑意把你震退，但剑招在识海里留下了清楚的轨迹。' : '守阵人的残影渐渐散去，冢中只剩两道尚未熄灭的刻痕。'}石像下压着一柄断剑与一片盾纹。带走其中一道传承，冢门便会闭合。`, choices: [
       choice('sword', '收拢断剑中的照夜剑意', '需要已拆开剑招，或能够承接剑意的准备', !marked(a, 'victory') && !marked(a, 'sword') && !marked(a, 'guard') ? '剑意仍未接受你的回应' : undefined),
@@ -115,15 +121,16 @@ function scene(g: Game, a: Active): { text: string; choices: ExpeditionChoice[] 
     ] };
   }
   if (a.stage === 0) return { text: '玉京洲天衡算院的旧灯没有灯芯。最后一位司灯人容照的手记压在台边：他曾远赴赤曜洲，向蚀日道借来另一种炼体法，试图让撑不住雷劫的散修也有生路。你带来的旧线索在此找到对应的缺口，仍需要先选一个可靠的落脚处。', choices: [
-    choice('stars', '依问星阁所学推定此刻星位', '需要观象诀；道心 −5', !art(g, 'star') ? '尚未掌握观象诀' : undefined),
+    choice('stars', '依门中识阵所学推定此刻星位', '需要识阵本领；道心 −5', !art(g, 'star') ? '尚未掌握识阵本领' : undefined),
     choice('spring', '以雾隐泉的吐纳节律回应石柱', '需要亲历雾隐泉洗髓；已掌握的灵息可以共鸣', !has(g, 'exp-spring-clear') && !has(g, 'exp-spring-vein') ? '没有经历过雾隐泉洗髓' : undefined),
+    ...(hasSectArt(g, 'pathfinder') ? [choice('pathcraft', '依辨路所学，独自勘定高台边缘', '道心 −5；标出虚实交界与可靠落脚点')] : []),
     choice('guide', `与${name(g, 'peer-2')}一起探查高台边缘`, '可信的寻路同道能标出虚实交界', friendReason(g, 'peer-2')),
     choice('notes', '伏案摹下完整的旧阵纹', '道心 −8；逐步核对旧卷与眼前刻痕'),
   ] };
   if (a.stage === 1) return { text: `${together}星盘开始转动，石柱却向地底沉下。你看清这不是占卜吉凶的法器，而是一座曾用来扶持渡劫者的旧阵。星盘与阵心之间只剩一根断续的灵线。`, choices: [
     choice('lens', '先固定星盘，留住正在消散的刻度', '道心 −10；集中观察阵法怎样应对灵息变化'),
     choice('anchor', '托住阵心，承接地下涌来的灵压', `体魄 −${marked(a, 'spring') || has(g, 'exp-tomb-ward') ? 8 : 18}；旧日洗髓或守阵经历能减轻负担`),
-    choice('balanced', '沿星位与退路同时稳住两端', '需要问星准备或寻路同伴；灵石 −35', !marked(a, 'stars') && !marked(a, 'guide') ? '独自无法同时看清两端变化' : money(g, 35)),
+    choice('balanced', '沿星位与退路同时稳住两端', '需要识阵准备、寻路本领或寻路同伴；灵石 −35', !marked(a, 'stars') && !guided(a) ? '独自无法同时看清两端变化' : money(g, 35)),
   ] };
   return { text: `${together}高台下传来巨响，旧阵已经开始自行解体。${marked(a, 'lens') ? '你记录的星盘刻度仍清晰可辨。' : marked(a, 'anchor') ? '阵心的起伏已与你的呼吸相合；石柱中露出容照从赤曜洲带回的蚀日炼体法。' : '你暂时维持住了星盘与阵心之间的细线，也读到了容照带回的蚀日炼体法。'}沿着来路可以离开；若执意留下，便要承受旧阵最后一次灵潮。`, choices: [
     choice('chart', '收好星盘记录，沿来路离开', '带走已经记录的观察；不再承受崩解中的灵压', marked(a, 'anchor') ? '先前只来得及稳住阵心，没有记录星盘' : undefined),
@@ -197,7 +204,7 @@ export function mutateExpedition(g: Game, action: ExpeditionAction, ctx: Expedit
   g.choices += 1;
   if (a.id === 'spring') {
     if (a.stage === 0) {
-      if (id === 'map') ctx.gain(g, { stats: { mind: -4 } });
+      if (id === 'map' || id === 'pathcraft') ctx.gain(g, { stats: { mind: -4 } });
       if (id === 'medicine') consumeHerbs(g, 2);
       if (id === 'healer') invite(g, a, 'peer-1');
       if (id === 'guide') invite(g, a, 'peer-2');
@@ -206,9 +213,9 @@ export function mutateExpedition(g: Game, action: ExpeditionAction, ctx: Expedit
     }
     if (a.stage === 1) {
       let mark = 'settled';
-      if (id === 'channel') ctx.gain(g, { stats: { health: marked(a, 'map') || marked(a, 'guide') ? -2 : -8 } });
+      if (id === 'channel') ctx.gain(g, { stats: { health: marked(a, 'map') || guided(a) ? -2 : -8 } });
       if (id === 'plunge') {
-        const success = ctx.random(g) < (marked(a, 'guide') ? 0.9 : marked(a, 'map') || springMedicine(a) ? 0.8 : 0.5);
+        const success = ctx.random(g) < (guided(a) ? 0.9 : marked(a, 'map') || springMedicine(a) ? 0.8 : 0.5);
         mark = success ? 'turbulent' : 'wounded';
         ctx.gain(g, { stats: { health: success ? -4 : -18 } });
       }
@@ -217,7 +224,7 @@ export function mutateExpedition(g: Game, action: ExpeditionAction, ctx: Expedit
     if (id === 'clear') {
       end(g, a, ctx, 'clear', '清泉洗髓', '你没有追逐最深处的灵潮，在外池完成了洗髓。经脉从此能够更安稳地承接灵息。资质永久 +4（上限100）；习得清泉息：静养每年额外恢复 3 道心。', [{ rootBoost: 4, stats: { foundation: 8 }, flag: 'exp-spring-clear' }]);
     } else {
-      const chance = 0.35 + (marked(a, 'settled') ? 0.25 : 0) + (springMedicine(a) ? 0.2 : marked(a, 'guide') || marked(a, 'map') ? 0.15 : 0.05);
+      const chance = 0.35 + (marked(a, 'settled') ? 0.25 : 0) + (springMedicine(a) ? 0.2 : guided(a) || marked(a, 'map') ? 0.15 : 0.05);
       if (ctx.random(g) < chance) end(g, a, ctx, 'vein', '地脉入身', '先前铺开的水路与护脉准备撑过灵潮，地脉在你体内留下了新的循环。资质永久 +10（上限100）；习得地脉吐纳：年度修炼收益 +8%。你离开时，洞天已经重新隐入山雾。', [{ rootBoost: 10, stats: { foundation: 10 }, flag: 'exp-spring-vein' }]);
       else end(g, a, ctx, 'scarred', '泉眼闭合之前', '地底灵潮超过了经脉的承受，体魄 −30、当前修为损失 40%。你沿先前留下的退路返回外池，保住温和洗髓的所得：资质永久 +4（上限100），习得清泉息，静养每年额外恢复 3 道心。', [{ stats: { health: -30 }, progress: -g.progress * 0.4, rootBoost: 4, flag: 'exp-spring-clear' }]);
     }
@@ -229,6 +236,7 @@ export function mutateExpedition(g: Game, action: ExpeditionAction, ctx: Expedit
     if (a.stage === 0) {
       if (id === 'medicine') consumeHerbs(g, art(g, 'herb') ? 1 : 3);
       if (id === 'ledger') invite(g, a, 'peer-0');
+      if (id === 'ledger-study') ctx.gain(g, { stats: { mind: -4 } });
       if (id === 'guard') invite(g, a, 'peer-3');
       if (id === 'haste') ctx.gain(g, { stats: { health: -8 } });
       setStage(g, a, id, ctx, `你${selected.label}，循着${target}留下的记号入谷。`); return;
@@ -236,7 +244,7 @@ export function mutateExpedition(g: Game, action: ExpeditionAction, ctx: Expedit
     if (a.stage === 1) {
       if (id === 'treat' && !marked(a, 'medicine') && !art(g, 'herb')) consumeHerbs(g, 3);
       if (id === 'passage') ctx.gain(g, { stones: -20 });
-      if (id === 'force') ctx.gain(g, { stats: { health: marked(a, 'guard') || art(g, 'qinglan') ? -8 : -20 } });
+      if (id === 'force') ctx.gain(g, { stats: { health: bearsImpact(g, a) ? -8 : -20 } });
       setStage(g, a, id === 'treat' ? 'treated' : id === 'force' ? 'forced' : 'passage', ctx, `你${selected.label}。${target}与伤者一同来到谷口，药库的火仍没有熄灭。`); return;
     }
     const relation: Effect = { npcId: 'peer-1', npcRelation: id === 'cache' ? 8 : 18, flag: 'companion-bond:peer-1' };
@@ -272,7 +280,7 @@ export function mutateExpedition(g: Game, action: ExpeditionAction, ctx: Expedit
     return;
   }
   if (a.stage === 0) {
-    if (id === 'stars') ctx.gain(g, { stats: { mind: -5 } });
+    if (id === 'stars' || id === 'pathcraft') ctx.gain(g, { stats: { mind: -5 } });
     if (id === 'guide') invite(g, a, 'peer-2');
     if (id === 'notes') ctx.gain(g, { stats: { mind: -8 } });
     setStage(g, a, id, ctx, `你${selected.label}，台上的灯光随之亮起。`); return;
@@ -289,7 +297,7 @@ export function mutateExpedition(g: Game, action: ExpeditionAction, ctx: Expedit
   else if (id === 'anchor') end(g, a, ctx, 'anchor', '渡厄守心诀', '你把阵心的呼吸记在心里，终于懂得怎样在冲关失手时护住自己的修为。习得渡厄守心诀：突破失败至少保留 82% 修为；根基 +10。', [anchor]);
   else if (id === 'eclipse') end(g, a, ctx, 'eclipse', '蚀日遗脉的行路人', '你读懂容照留下的批注，放下算院的两门旧法，以身为炉承接蚀日炼体传承。资质永久 +5（上限100）；历练修为 +35%，每年体魄 +1.5；额外供养 5 灵石／年，因异法名声承受声望 −0.3／年。从今以后，你行走山河时有了不同的修行办法。', [{ rootBoost: 5, flag: 'legacy-eclipse' }]);
   else {
-    const success = ctx.random(g) < Math.min(0.88, 0.35 + (marked(a, 'balanced') ? 0.3 : 0) + (marked(a, 'stars') || marked(a, 'guide') || marked(a, 'spring') ? 0.2 : 0.1));
+    const success = ctx.random(g) < Math.min(0.88, 0.35 + (marked(a, 'balanced') ? 0.3 : 0) + (marked(a, 'stars') || guided(a) || marked(a, 'spring') ? 0.2 : 0.1));
     if (success) end(g, a, ctx, 'confluence', '旧阵重明', '你让两端重新相接，旧阵在崩解前完整运转了一次。资质永久 +8（上限100）；同时领悟无昼星图与渡厄守心诀：突破成功率 +4 个百分点，失败至少保留 82% 修为；悟性与根基各 +10。你沿旧日经历指引的路，带回了属于自己的答案。', [chart, anchor, { rootBoost: 8 }]);
     else {
       const retained = marked(a, 'anchor') ? anchor : chart;
@@ -317,10 +325,12 @@ export function isValidExpeditions(value: unknown, g: Game): boolean {
   if (!Number.isInteger(a.stage) || a.stage < 0 || a.stage > 2 || !Number.isInteger(a.startedAge) || a.startedAge !== g.age || !Array.isArray(a.marks) || a.marks.length !== a.stage || new Set(a.marks).size !== a.marks.length) return false;
   const def = definitions[a.id as ExpeditionId];
   if (g.realm < def.minRealm || g.realm > def.maxRealm || g.region !== regions[a.id as ExpeditionId] || a.marks.some(mark => !(def.marks as readonly string[]).includes(mark))) return false;
-  const firstMarks: Record<ExpeditionId, string[]> = { spring: ['map', 'medicine', 'healer', 'guide', 'supplies'], rescue: ['medicine', 'ledger', 'guard', 'haste'], tomb: ['sword', 'guard', 'glyph'], observatory: ['stars', 'spring', 'guide', 'notes'] };
+  const firstMarks: Record<ExpeditionId, string[]> = { spring: ['map', 'medicine', 'healer', 'guide', 'pathcraft', 'supplies'], rescue: ['medicine', 'ledger', 'ledger-study', 'guard', 'haste'], tomb: ['sword', 'guard', 'glyph'], observatory: ['stars', 'spring', 'guide', 'pathcraft', 'notes'] };
   const secondMarks: Record<ExpeditionId, string[]> = { spring: ['settled', 'turbulent', 'wounded'], rescue: ['treated', 'passage', 'forced'], tomb: ['ward', 'victory', 'clash', 'still'], observatory: ['lens', 'anchor', 'balanced'] };
   if (a.stage > 0 && !firstMarks[a.id as ExpeditionId].includes(a.marks[0])) return false;
   if (a.stage > 1 && !secondMarks[a.id as ExpeditionId].includes(a.marks[1])) return false;
+  if (a.marks[0] === 'pathcraft' && !hasSectArt(g, 'pathfinder')) return false;
+  if (a.marks[0] === 'ledger-study' && !hasSectArt(g, 'ledger')) return false;
   const expectedCompanion = a.marks[0] === 'guide' ? 'peer-2' : a.marks[0] === 'guard' ? 'peer-3' : a.marks[0] === 'ledger' ? 'peer-0' : a.marks[0] === 'healer' ? 'peer-1' : undefined;
   if (a.companionId !== expectedCompanion || (a.companionId !== undefined && !peer(g, a.companionId)?.alive)) return false;
   if (a.id === 'rescue' && !peer(g, 'peer-1')?.alive) return false;

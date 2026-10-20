@@ -1,0 +1,64 @@
+.time-dock:has(> .year-clock) {
+  flex-wrap: wrap;
+  gap: 11px 18px;
+  padding-top: 13px;
+  padding-bottom: 13px;
+}
+.year-clock {
+  width: 100%;
+  flex: 0 0 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+.year-clock-caption {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+  color: var(--ink);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.year-clock-caption strong { color: var(--jade); font-weight: 600; }
+.year-clock-caption small { margin-left: 6px; font-size: 10px; color: var(--muted); }
+.year-clock-countdown { color: var(--muted); font-size: 10px; white-space: nowrap; }
+.year-clock-track {
+  height: 9px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--line);
+  box-shadow: inset 0 1px 3px #1c2a231a;
+}
+.year-clock-fill {
+  height: 100%;
+  position: relative;
+  transition: width 80ms linear;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--jade-dark), var(--jade) 68%, var(--gold));
+  box-shadow: 2px 0 8px color-mix(in srgb, var(--jade) 40%, transparent);
+}
+.year-clock-fill:after {
+  position: absolute;
+  content: "";
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: min(28px, 100%);
+  background: linear-gradient(90deg, transparent, #fff5);
+}
+.in-game .page-content { padding-bottom: 175px; }
+@media(max-width:820px) {
+  .time-dock:has(> .year-clock) { gap: 10px; }
+  .year-clock-caption { font-size: 10px; }
+}
+@media(max-width:640px) {
+  .time-dock:has(> .year-clock) { padding: 11px 16px; gap: 10px; }
+  .in-game .page-content { padding-bottom: 245px; }
+  .year-clock-caption small, .year-clock-countdown { font-size: 9px; }
+}
+@media(max-width:360px) {
+  .year-clock-caption small { margin-left: 3px; font-size: 8px; }
+  .time-dock:has(> .year-clock) { padding-inline: 11px; }
+}

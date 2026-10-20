@@ -1,0 +1,151 @@
+/* Shared life-state ribbon: always visible while scrolling between game screens. */
+.global-status {
+  position: sticky;
+  top: 0;
+  z-index: 19;
+  display: grid;
+  grid-template-columns: minmax(140px, 1.2fr) minmax(140px, 1.1fr) minmax(170px, 1.4fr) minmax(350px, 4fr);
+  align-items: center;
+  gap: 18px;
+  padding: 12px 38px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--paper) 96%, transparent);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 5px 18px #203a3008;
+}
+.global-status strong { font-variant-numeric: tabular-nums; }
+.status-person, .status-calendar {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 5px;
+}
+.status-name { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.status-name strong {
+  font: 600 16px var(--serif);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.status-name span {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--jade);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 2px 5px;
+  white-space: nowrap;
+}
+.status-person>small, .status-calendar>small, .status-kicker {
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.status-calendar>strong { font-size: 12px; font-weight: 600; white-space: nowrap; }
+.status-resources {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  min-width: 0;
+}
+.status-resource {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 1px 10px;
+  min-width: 0;
+}
+.status-resource:first-child { padding-left: 0; }
+.status-resource+.status-resource { border-left: 1px solid var(--line); }
+.status-resource>span { font-size: 10px; color: var(--muted); white-space: nowrap; }
+.status-resource>strong {
+  font-size: 17px;
+  font-weight: 650;
+  color: var(--jade);
+  white-space: nowrap;
+}
+.status-resource>strong small { font-size: 10px; font-weight: 400; color: var(--muted); }
+.status-resource.exhausted>strong { color: var(--red); }
+.status-attributes {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+.status-attribute {
+  min-width: 0;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+.status-attribute>span { font-size: 10px; color: var(--muted); white-space: nowrap; }
+.status-attribute>strong { font-size: 13px; font-weight: 600; line-height: 1.2; }
+.status-attribute>i {
+  display: block;
+  height: 3px;
+  background: var(--line);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.status-attribute>i>b {
+  display: block;
+  height: 100%;
+  background: var(--jade);
+}
+.status-attribute.critical>strong { color: var(--red); }
+.status-attribute.critical>i>b { background: var(--red); }
+
+@media (max-width: 1280px) {
+  .global-status { padding-inline: 26px; gap: 13px; }
+}
+@media (max-width: 1050px) {
+  .global-status {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(190px, 1.15fr);
+    gap: 10px 15px;
+  }
+  .status-attributes {
+    grid-column: 1 / -1;
+    border-top: 1px solid var(--line);
+    padding-top: 9px;
+    gap: 12px;
+  }
+}
+@media (max-width: 640px) {
+  .global-status {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px 12px;
+    padding: 10px 15px;
+  }
+  .status-name strong { font-size: 14px; }
+  .status-name span { font-size: 9px; }
+  .status-person>small, .status-calendar>small, .status-kicker { font-size: 9px; }
+  .status-calendar { text-align: right; }
+  .status-calendar>strong { font-size: 11px; }
+  .status-resources {
+    grid-column: 1 / -1;
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    padding: 6px 0;
+  }
+  .status-resource { padding-inline: 12px; gap: 2px; }
+  .status-resource>strong { font-size: 15px; }
+  .status-attributes {
+    grid-column: 1 / -1;
+    padding-top: 1px;
+    gap: 5px;
+    border: 0;
+  }
+  .status-attribute>span { font-size: 9px; }
+  .status-attribute>strong { font-size: 12px; }
+}
+@media (max-width: 360px) {
+  .global-status { gap: 7px 8px; padding-inline: 11px; }
+  .status-name { gap: 5px; }
+  .status-attributes { gap: 3px; }
+}
+@media print {
+  .global-status { display: none !important; }
+}

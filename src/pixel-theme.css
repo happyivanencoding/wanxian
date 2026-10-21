@@ -700,6 +700,137 @@ summary { cursor: pointer; min-height: 44px; padding-block: 11px; font-size: 14p
   .app-shell .event-choice .choice-number { min-width: 26px; font-size: 15px; }
   .app-shell .breakthrough-facts > span { font-size: 13px; }
   .app-shell .ending-stats strong { font-size: 26px; }
+
+  /* Dense reading layout for mobile secondary pages; keep the cultivation home unchanged. */
+  .app-shell.in-game .breadcrumb,
+  .app-shell.in-game .mobile-subnav button,
+  .app-shell.in-game .mobile-bottom-nav button > span,
+  .app-shell.in-game .time-controls .button,
+  .app-shell.in-game .speed-select { font-size: 12px; }
+  .app-shell.in-game .page-content.is-secondary {
+    padding: 8px 8px calc(164px + env(safe-area-inset-bottom));
+    font-size: 12px;
+  }
+  .app-shell.in-game .page-content.is-secondary .section-title { gap: 6px; margin-bottom: 8px; }
+  .app-shell.in-game .page-content.is-secondary .section-title .eyebrow { display: none; }
+  .app-shell.in-game .page-content.is-secondary .section-title h2 { font-size: 18px; line-height: 1.35; }
+  .app-shell.in-game .page-content.is-secondary .section-title p { font-size: 12px; margin-top: 3px; }
+  .app-shell.in-game .page-content.is-secondary .soft-badge { font-size: 11px; padding: 4px 6px; }
+  .app-shell.in-game .page-content.is-secondary .panel,
+  .app-shell.in-game .page-content.is-secondary .story-panel { padding: 10px; }
+  .app-shell.in-game .page-content.is-secondary .world-map,
+  .app-shell.in-game .page-content.is-secondary .sect-compact-card { padding: 0; }
+  .app-shell.in-game .page-content.is-secondary p { font-size: 12.5px; line-height: 1.55; }
+  .app-shell.in-game .page-content.is-secondary .notice {
+    font-size: 12px; line-height: 1.5; padding: 8px; margin: 8px 0; gap: 6px;
+  }
+  .app-shell.in-game .page-content.is-secondary .tab-bar { margin-bottom: 7px; padding: 3px; }
+  .app-shell.in-game .page-content.is-secondary .tab-bar > button,
+  .app-shell.in-game .page-content.is-secondary .filter-chips > button { font-size: 12px; padding: 7px 6px; min-height: 44px; }
+  .app-shell.in-game .page-content.is-secondary .tab-note { display: none; }
+  .app-shell.in-game .page-content.is-secondary .inventory-toolbar,
+  .app-shell.in-game .page-content.is-secondary .chronicle-toolbar { margin: 7px 0; gap: 6px; }
+  .app-shell.in-game .page-content.is-secondary .item-grid,
+  .app-shell.in-game .page-content.is-secondary .recipe-grid,
+  .app-shell.in-game .page-content.is-secondary .facility-grid,
+  .app-shell.in-game .page-content.is-secondary .people-grid,
+  .app-shell.in-game .page-content.is-secondary .three-card-grid,
+  .app-shell.in-game .page-content.is-secondary .expedition-offers,
+  .app-shell.in-game .page-content.is-secondary .achievement-grid { gap: 7px; }
+  .app-shell.in-game .page-content.is-secondary .item-top { gap: 5px; }
+  .app-shell.in-game .page-content.is-secondary .item-mark { width: 40px; height: 40px; }
+  .app-shell.in-game .page-content.is-secondary .item-top h3 { font-size: 14px; margin-top: 1px; }
+  .app-shell.in-game .page-content.is-secondary .item-card > p,
+  .app-shell.in-game .page-content.is-secondary .recipe-card > p,
+  .app-shell.in-game .page-content.is-secondary .facility-card > p,
+  .app-shell.in-game .page-content.is-secondary .action-card > p,
+  .app-shell.in-game .page-content.is-secondary .person-story { margin: 6px 0; font-size: 12px; line-height: 1.5; }
+  .app-shell.in-game .page-content.is-secondary .item-price { margin-bottom: 5px; }
+  .app-shell.in-game .page-content.is-secondary .item-price strong { font-size: 18px; }
+  .app-shell.in-game .page-content.is-secondary .item-buttons .button,
+  .app-shell.in-game .page-content.is-secondary .item-card .button,
+  .app-shell.in-game .page-content.is-secondary .recipe-card .button,
+  .app-shell.in-game .page-content.is-secondary .facility-card .button { font-size: 12px; min-height: 44px; }
+  .app-shell.in-game .page-content.is-secondary .recipe-card h3,
+  .app-shell.in-game .page-content.is-secondary .facility-card h3 { font-size: 15px; margin: 6px 0 4px; }
+  .app-shell.in-game .page-content.is-secondary .recipe-materials { margin: 7px 0; gap: 4px; font-size: 12px; }
+  .app-shell.in-game .page-content.is-secondary .recipe-requirement { padding: 5px 0; }
+  .app-shell.in-game .page-content.is-secondary .facility-top { margin-bottom: 5px; }
+  .app-shell.in-game .page-content.is-secondary .level-dots { margin-bottom: 8px; }
+  .app-shell.in-game .page-content.is-secondary .alchemy-overview { gap: 7px; margin-bottom: 8px; }
+  .app-shell.in-game .page-content.is-secondary .alchemy-overview h2 { font-size: 18px; }
+  .app-shell.in-game .page-content.is-secondary .home-copy h2 { font-size: 21px; }
+  .app-shell.in-game .page-content.is-secondary .person-top { gap: 8px; }
+  .app-shell.in-game .page-content.is-secondary .person-top h2 { font-size: 18px; }
+  .app-shell.in-game .page-content.is-secondary .person-tags,
+  .app-shell.in-game .page-content.is-secondary .person-metrics { font-size: 11px; gap: 4px 7px; }
+  .app-shell.in-game .page-content.is-secondary .person-actions { gap: 5px; }
+  .app-shell.in-game .page-content.is-secondary .companion-trait { padding: 7px; margin-bottom: 8px; }
+  .app-shell.in-game .page-content.is-secondary .companion-trait h3 { font-size: 14px; }
+  .app-shell.in-game .page-content.is-secondary .sect-hero { gap: 8px; }
+  .app-shell.in-game .page-content.is-secondary .sect-hero h1,
+  .app-shell.in-game .page-content.is-secondary .region-detail h2 { font-size: 19px; }
+  .app-shell.in-game .page-content.is-secondary .sect-ranks { margin: 9px 0; gap: 4px; }
+  .app-shell.in-game .page-content.is-secondary .sect-compact-summary { padding: 8px 10px; min-height: 54px; gap: 8px; }
+  .app-shell.in-game .page-content.is-secondary .sect-compact-name strong { font-size: 16px; }
+  .app-shell.in-game .page-content.is-secondary .sect-compact-name small { font-size: 11px; line-height: 1.4; margin-top: 1px; }
+  .app-shell.in-game .page-content.is-secondary .sect-compact-body { padding: 0 10px 8px; }
+  .app-shell.in-game .page-content.is-secondary .sect-compact-body p { margin: 6px 0; }
+  .app-shell.in-game .page-content.is-secondary .sect-entry-line,
+  .app-shell.in-game .page-content.is-secondary .sect-directory-actions { padding: 7px 10px; gap: 5px; font-size: 11px; }
+  .app-shell.in-game .page-content.is-secondary .sect-local-intro { margin: 8px 0; gap: 5px; }
+  .app-shell.in-game .page-content.is-secondary .sect-local-intro h3 { font-size: 16px; }
+  .app-shell.in-game .page-content.is-secondary .world-layout,
+  .app-shell.in-game .page-content.is-secondary .world-weather,
+  .app-shell.in-game .page-content.is-secondary .story-layout { gap: 8px; }
+  .app-shell.in-game .page-content.is-secondary .metric-pairs { margin: 8px 0; padding: 8px 0; gap: 6px; }
+  .app-shell.in-game .page-content.is-secondary .region-symbol { width: 42px; height: 42px; margin: 7px 0; font-size: 23px; }
+  .app-shell.in-game .page-content.is-secondary .region-lore { margin: 7px 0; padding-top: 7px; }
+  .app-shell.in-game .page-content.is-secondary .region-lore p,
+  .app-shell.in-game .page-content.is-secondary .region-lore ul { font-size: 12px; line-height: 1.5; margin-bottom: 6px; }
+  .app-shell.in-game .page-content.is-secondary .life-identity h1 { font-size: 22px; }
+  .app-shell.in-game .page-content.is-secondary .life-world-identity h2,
+  .app-shell.in-game .page-content.is-secondary .story-present h2 { font-size: 18px; }
+  .app-shell.in-game .page-content.is-secondary .story-description,
+  .app-shell.in-game .page-content.is-secondary .story-chapters p,
+  .app-shell.in-game .page-content.is-secondary .fate-arc p { font-size: 12.5px; line-height: 1.6; }
+  .app-shell.in-game .page-content.is-secondary .log-row { gap: 6px; padding: 8px 0; }
+  .app-shell.in-game .page-content.is-secondary .log-content h4 { font-size: 13px; line-height: 1.4; }
+  .app-shell.in-game .page-content.is-secondary .log-content p { font-size: 12px; line-height: 1.55; }
+  .app-shell.in-game .page-content.is-secondary .log-age strong { font-size: 17px; }
+  .app-shell.in-game .page-content.is-secondary .achievement { padding: 7px 5px; gap: 5px; }
+  .app-shell.in-game .page-content.is-secondary .achievement > small { font-size: 11px; }
+  .app-shell.in-game .page-content.is-secondary .archive-card { padding: 9px 28px 9px 9px; }
+  .app-shell.in-game .page-content.is-secondary .archive-card h3 { font-size: 17px; }
+  .app-shell.in-game .page-content.is-secondary .biography h1 { font-size: 22px; }
+  .app-shell.in-game .page-content.is-secondary .expedition-offer h2,
+  .app-shell.in-game .page-content.is-secondary .expedition-active h2 { font-size: 18px; margin-bottom: 6px; }
+  .app-shell.in-game .page-content.is-secondary .expedition-scene { font-size: 13px; line-height: 1.6; margin: 8px 0 11px; }
+  .app-shell.in-game .page-content.is-secondary .expedition-known { margin: 7px 0; gap: 5px; font-size: 12px; }
+
+  /* Choices contain actions and actual costs, not a second paragraph of persuasion. */
+  .app-shell.in-game .event-choice,
+  .app-shell.in-game .page-content.is-secondary .expedition-choices .event-choice { min-height: 44px; padding: 9px 10px; gap: 7px; }
+  .app-shell.in-game .event-choice strong { font-size: 13px; line-height: 1.45; }
+  .app-shell.in-game .event-choice .choice-number { font-size: 13px; min-width: 24px; }
+  .app-shell.in-game .event-choice .choice-mechanics { font-size: 11px; line-height: 1.4; margin-top: 2px; }
+  .app-shell.in-game .modal-header { padding: 10px 11px; }
+  .app-shell.in-game .modal-header h2 { font-size: 18px; }
+  .app-shell.in-game .modal-body { padding: 11px; font-size: 13px; }
+  .app-shell.in-game .modal .select-card strong { font-size: 14px; }
+  .app-shell.in-game .modal .select-card span { font-size: 12px; line-height: 1.5; }
+  .app-shell.in-game .modal .form-field { font-size: 12px; margin-bottom: 11px; gap: 5px; }
+  .app-shell.in-game .modal .form-field small,
+  .app-shell.in-game .modal .check-label small { font-size: 11px; line-height: 1.5; }
+  .app-shell.in-game .modal .form-field input,
+  .app-shell.in-game .modal .form-field select { font-size: 16px; min-height: 44px; }
+  .app-shell.in-game .modal .field-label { font-size: 12px; margin-bottom: 5px; }
+  .app-shell.in-game .modal .check-label { font-size: 13px; line-height: 1.5; }
+  .app-shell.in-game .modal .notice { font-size: 12px; padding: 8px; margin: 8px 0; line-height: 1.5; }
+  .app-shell.in-game .modal .focus-picker-option strong { font-size: 13px; }
+  .app-shell.in-game .modal .focus-picker-option small { font-size: 11px; line-height: 1.4; }
+  .app-shell.in-game .modal .preparation-option { padding: 10px; }
+  .app-shell.in-game .modal .preparation-option p { margin: 6px 0; font-size: 12px; line-height: 1.5; }
 }
 
 @media (max-width: 359px) {

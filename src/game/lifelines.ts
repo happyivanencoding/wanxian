@@ -51,16 +51,16 @@ export function nextLifeEvent(g: Game): string | undefined {
   if (available('life-heaven', Boolean(g.direction) && g.realm === 5 && g.progress >= REALMS[5].need)) return 'life-heaven';
   const offset = g.seed % 7;
   const candidates: [string, boolean][] = [
-    ['life-road', g.age >= 19 + offset && g.age < 60 && person(g, 2).alive],
-    ['life-pill', g.age >= 26 + offset && g.age < 90 && person(g, 1).alive],
-    ['life-house', g.age >= 36 + offset && g.age < 110 && person(g, 0).alive],
+    ['life-road', g.age >= 19 + offset && g.age < 60 && Boolean(person(g, 2)?.alive && person(g, 2)?.role !== 'enemy')],
+    ['life-pill', g.age >= 26 + offset && g.age < 90 && Boolean(person(g, 1)?.alive && person(g, 1)?.role !== 'enemy')],
+    ['life-house', g.age >= 36 + offset && g.age < 110 && Boolean(person(g, 0)?.alive && person(g, 0)?.role !== 'enemy')],
     ['life-road-return', elapsed(g, 'life-road', 17)],
     ['life-pill-return', elapsed(g, 'life-pill', 19)],
-    ['life-rival', g.age >= 48 + offset && g.age < 140 && person(g, 3).alive],
+    ['life-rival', g.age >= 48 + offset && g.age < 140 && Boolean(person(g, 3)?.alive && person(g, 3)?.role !== 'enemy')],
     ['life-house-return', elapsed(g, 'life-house', 25)],
     ['life-sword-answer', elapsed(g, 'life-rival', 28)],
-    ['life-visit', g.age >= 64 + offset && g.npcs.some(npc => npc.alive)],
-    ['life-farewell', g.age >= 75 && g.npcs.some(npc => !npc.alive)],
+    ['life-visit', g.age >= 64 + offset && g.npcs.some(npc => npc.alive && npc.role !== 'enemy')],
+    ['life-farewell', g.age >= 75 && g.npcs.some(npc => !npc.alive && npc.role !== 'enemy')],
     ['life-inherit', g.age >= 130 + offset && g.realm >= 2],
     ['life-revision', elapsed(g, 'life-inherit', 48)],
     ['life-division', elapsed(g, 'life-revision', 72) && !has(g, 'life-legacy-book')],
@@ -76,7 +76,7 @@ export function nextLifeEvent(g: Game): string | undefined {
 
 export function bindLifeEvent(g: Game, id: string) {
   if (!['life-visit', 'life-farewell'].includes(id) || chosen(g, `${id}-person:`)) return;
-  const candidates = g.npcs.filter(npc => id === 'life-visit' ? npc.alive : !npc.alive);
+  const candidates = g.npcs.filter(npc => id === 'life-visit' ? npc.alive && npc.role !== 'enemy' : !npc.alive && npc.role !== 'enemy');
   const actor = [...candidates].sort((a, b) => b.relation - a.relation)[0];
   if (actor) g.flags.push(`${id}-person:${actor.id}`);
 }
@@ -85,12 +85,13 @@ export function getLifeEvent(g: Game, id: string): EventDef | undefined {
   const base = LIFE_EVENTS.find(event => event.id === id);
   if (!base) return;
   const road = person(g, 2), healer = person(g, 1), heir = person(g, 0), rival = person(g, 3);
+  if ((['life-road', 'life-road-return'].includes(id) && !road) || (['life-pill', 'life-pill-return'].includes(id) && !healer) || (['life-house', 'life-house-return'].includes(id) && !heir) || (['life-rival', 'life-sword-answer'].includes(id) && !rival)) return;
   const depart = (npc: NPC) => npc.realm === 6 ? '已经飞升离界' : '已经离世';
   const cost = 18 + g.realm * 10;
   const result = (text: string, choices: Choice[], cause?: string): EventDef => ({ ...base, text, choices, ...(cause ? { cause } : {}) });
   switch (id) {
     case 'life-road':
-      return result(`${road.name}把一张手绘地图铺在渡口。你们小时候总说要走到河的尽头。现在，${road.name}想沿河看看村镇，而你刚找到一处适合修炼的地方。船明早离岸。`, [
+      return result(`${road.name}把一张手绘地图铺在渡口。你还记得初见时，那张在渡口晒着的地图。现在，${road.name}想沿河看看村镇，而你刚找到一处适合修炼的地方。船明早离岸。`, [
         choice('一起走这一程', '修为 −12；灵石 −12', { progress: -12, flag: 'life-road-together', ...relation(road, 9) }, `你与${road.name}共用一盏船灯。船在石滩搁浅过一夜，天亮后你们把湿地图晒在舷边。`, { cost: 12 }),
         choice('留下修行，请对方寄信', '', { flag: 'life-road-letters', progress: 12 }, `${road.name}独自上了船。你把住址写在地图背面，自己的日子也继续向前。`),
         choice('送到渡口，不约定重逢', '', { flag: 'life-road-free', ...relation(road, 3) }, `你送${road.name}到岸边。你们没有约定归期，也没有把这一别说成亏欠。`),
@@ -149,7 +150,7 @@ export function getLifeEvent(g: Game, id: string): EventDef | undefined {
       return result(`${rival.alive ? `${rival.name}与你重新谈起旧剑谱。` : `${rival.name}${depart(rival)}，旧剑谱仍按原约保存在你这里。`}山下有人来求一份可以练习的抄本。${promise ? '你曾答应不外传，那句话并没有因为过了许多年就失效。' : '当年各自划定的界线，如今遇见了新的求学者。'}`, [
         choice(promise ? '只教自己的心得，不抄旧谱' : '另写一册自己的基础剑法', '修为 −18；战技 +3', { progress: -18, stats: { combat: 3 }, flag: 'life-sword-own' }, '你从自己的经历写起，把不能由你独自作主的内容留在原处。'),
         ...(trusted ? [choice('与对方一起重新商定公开范围', '修为 −28', { progress: -28, flag: 'life-sword-permission', ...relation(rival, 5) }, `你与${rival.name}逐页讨论。新抄本只保留双方认可的部分，两个人都署了名。`)] : []),
-        choice('把自己保存的旧谱也交出去', promise ? `${rival.alive ? '违背旧约，关系 −25' : '旧约无法再取得对方同意'}` : '', { flag: 'life-sword-published', ...(promise ? relation(rival, -25) : {}) }, promise && rival.alive ? `${rival.name}得知后要回了来往手札。求学者得到了剑谱，你们却不再像从前一样相处。` : `旧谱开始被抄阅。封面同时记着${rival.name}的名字与当年的约定。`),
+        choice('把自己保存的旧谱也交出去', promise ? `${rival.alive ? '违背旧约，关系 −25；可能结仇追杀' : '旧约无法再取得对方同意'}` : '', { flag: 'life-sword-published', ...(promise ? relation(rival, -25) : {}) }, promise && rival.alive ? `${rival.name}得知后要回了来往手札。求学者得到了剑谱，你们却不再像从前一样相处。` : `旧谱开始被抄阅。封面同时记着${rival.name}的名字与当年的约定。`),
       ], `${g.seen['life-rival']}岁，对旧剑谱作出的选择。`);
     }
     case 'life-book-reader':
@@ -160,6 +161,7 @@ export function getLifeEvent(g: Game, id: string): EventDef | undefined {
     case 'life-visit': {
       const actorId = chosen(g, 'life-visit-person:')?.slice('life-visit-person:'.length);
       const actor = g.npcs.find(npc => npc.id === actorId) ?? road;
+      if (!actor) return;
       return result(actor.alive ? `${actor.name}约你在旧茶亭坐一坐。没有求助，也没有新传承。恰好这几日你有所领悟，出关会让这段推演暂时中断。` : `${actor.name}${depart(actor)}。当年相约的茶亭还在，这次你只能独自赴约。`, [
         choice('放下推演，去坐一会儿', '修为 −18', { progress: -18, flag: 'life-visit-went', ...relation(actor, 9) }, `${actor.alive ? `你与${actor.name}` : `你带着${actor.name}的旧信`}在茶亭坐到天色暗下来。壶里的茶凉过两次，离开时茶亭已经点了灯。`),
         choice('这一次不去，把缘由写清楚', '', { flag: 'life-visit-missed' }, `你写明了自己的决定，没有把没能相见说成命运的安排。${actor.alive ? `${actor.name}如何理解，还要留给之后的相处。` : '这封信已经没有收信人。'}`),
@@ -167,7 +169,8 @@ export function getLifeEvent(g: Game, id: string): EventDef | undefined {
     }
     case 'life-farewell': {
       const actorId = chosen(g, 'life-farewell-person:')?.slice('life-farewell-person:'.length);
-      const actor = g.npcs.find(npc => npc.id === actorId) ?? g.npcs.find(npc => !npc.alive) ?? road;
+      const actor = g.npcs.find(npc => npc.id === actorId) ?? g.npcs.find(npc => !npc.alive && npc.role !== 'enemy') ?? road;
+      if (!actor) return;
       return result(`${actor.name}${depart(actor)}。收拾旧物时，你发现一些与你无关的字句：未去过的地方、没做成的事，也有早已被忘掉的小快乐。你只是这段人生中的一部分。`, [
         choice('保留这些原话，包括与你不同的地方', '', { flag: 'life-farewell-true' }, `你按原样收好${actor.name}的字句。最后一页是张没画完的行路图，角落里写着一个你未曾听过的地名。`),
         choice('只留一件随身物，把其余交回旧居', '', { flag: 'life-farewell-private' }, `你留下能认出的那件旧物，其余交还${actor.name}曾经生活的地方。你不必保管对方的全部一生。`),
@@ -267,9 +270,9 @@ export function lifeMemory(g: Game, npc: NPC) {
 
 export function lifeLegacyText(g: Game) {
   const memories = [
-    has(g, 'life-dose-given') ? `你曾把本该属于自己的丹药留给${person(g, 1).name}。` : '',
-    has(g, 'life-road-lodge') ? `${person(g, 2).name}的旧地图留在一处渡口。` : '',
-    has(g, 'life-sword-apart') ? `你与${person(g, 3).name}曾因传承的分歧各走一途。` : '',
+    has(g, 'life-dose-given') ? `你曾把本该属于自己的丹药留给${person(g, 1)?.name ?? '旧识'}。` : '',
+    has(g, 'life-road-lodge') ? `${person(g, 2)?.name ?? '旧识'}的旧地图留在一处渡口。` : '',
+    has(g, 'life-sword-apart') ? `你与${person(g, 3)?.name ?? '旧识'}曾因传承的分歧各走一途。` : '',
     has(g, 'life-legacy-open') ? '你允许后来者改写所传之法。' : has(g, 'life-legacy-line') ? '你留下了愿意承接原法的师承。' : has(g, 'life-legacy-book') ? '你没有开宗立派，留下的是自己的行记。' : '',
     has(g, 'life-remember-listen') ? '曾有一个地方使用你的方法，却不再记得你的名字。' : '',
   ];

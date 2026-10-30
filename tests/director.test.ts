@@ -1,3 +1,4 @@
+import { withLegacyPeers, handledWorldTurns } from './fixtures.ts';
 import test from 'node:test';
 import { LIFE_EVENTS } from '../src/game/lifelines.ts';
 import assert from 'node:assert/strict';
@@ -8,13 +9,13 @@ import { newProfile, parseProfile, settleProfile, validGame } from '../src/game/
 import type { DirectorDecision, DirectedAction, DirectorRequest, Game } from '../src/game/types.ts';
 
 function person(): Game {
-  const g = createGame({ name: '沈见微', gender: '随缘', origin: 'wanderer', era: 'peace', route: 'balanced', region: 'qinglan', mode: 'seeker', fastStart: false, seed: 'director-1' });
+  const g = withLegacyPeers(createGame({ name: '沈见微', gender: '随缘', origin: 'wanderer', era: 'peace', route: 'balanced', region: 'qinglan', mode: 'seeker', fastStart: false, seed: 'director-1' }));
   g.age = 40; g.realm = 2; g.progress = 50; g.lifespan = 260; g.stones = 160; g.focus = 'adventure';
   g.stats = { health: 70, mind: 60, insight: 55, foundation: 55, alchemy: 30, combat: 40, reputation: 35 };
   g.seen['story-call-guardian'] = 20;
   for (const event of LIFE_EVENTS) g.seen[event.id] = 20;
   for (const npc of g.npcs) { npc.age = 40; npc.realm = 2; npc.lifespan = 260; npc.relation = 65; npc.progress = 0; }
-  return g;
+  return handledWorldTurns(g);
 }
 const talk: DirectedAction = { type: 'npc', id: 'peer-1', interaction: 'talk' };
 function decision(request: DirectorRequest, candidateId: string): DirectorDecision {

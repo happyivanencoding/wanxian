@@ -1,3 +1,4 @@
+import { worldYear } from '../game/history.ts';
 import { useState } from 'react';
 import type { Game, Stat } from '../game/types.ts';
 import { REALMS, SECTS, SECT_RANKS, STAT_NAMES } from '../game/data.ts';
@@ -25,11 +26,11 @@ export default function GlobalStatus({ game }: { game: Game }) {
       <div className="status-identity"><div className="status-name">
         <strong title={game.name}>{game.name}</strong><span>{realmName(game)}</span>
       </div>
-      <small className="status-affiliation" title={sect ? `${sect.name} · ${SECT_RANKS[game.sectRank]}` : '无门无派 · 自在散修'}>{sect ? `${sect.name} · ${SECT_RANKS[game.sectRank]}` : '无门无派 · 自在散修'}</small><small className="status-age">{game.age}岁 · {game.yearName}{2300 + game.age}年</small></div>
+      <small className="status-affiliation" title={sect ? `${sect.name} · ${SECT_RANKS[game.sectRank]}` : '无门无派 · 自在散修'}>{sect ? `${sect.name} · ${SECT_RANKS[game.sectRank]}` : '无门无派 · 自在散修'}</small><small className="status-age">{game.age}岁 · {game.yearName}{worldYear(game)}年</small></div>
     </div>
     <div className="status-calendar">
       <span className="status-kicker">现世纪年</span>
-      <strong>{game.yearName} · {2300 + game.age}年</strong>
+      <strong>{game.yearName} · {worldYear(game)}年</strong>
       <small>{game.age}岁 / 寿元 {game.lifespan}岁</small>
     </div>
     <div className="status-resources">
@@ -46,7 +47,7 @@ export default function GlobalStatus({ game }: { game: Game }) {
     <div className="status-meters" aria-label="修为、身心与寿元">{meters.map(meter => <div key={meter.id} className={`status-meter status-meter-${meter.id} ${meter.id === 'health' && game.stats.health < 35 ? 'critical' : ''}`} data-testid={meter.id === 'health' || meter.id === 'mind' ? `status-stat-${meter.id}` : undefined}>
       <span>{meter.label}</span><div className="status-meter-track"><i style={{ width: meter.width }}/></div><div className="status-meter-value"><strong>{meter.value}</strong><small>/{meter.total}</small></div>
     </div>)}</div>
-    <button className={`status-expand ${game.stats.health < 35 && game.alive ? 'status-critical' : ''}`} data-testid="status-expand" aria-expanded={expanded} onClick={() => setExpanded(value => !value)}>{expanded ? '收起属性 ▴' : '体魄 · 道心常显，展开全部属性 ▾'}</button>
+    <button className={`status-expand ${game.stats.health < 35 && game.alive ? 'status-critical' : ''}`} data-testid="status-expand" aria-expanded={expanded} onClick={() => setExpanded(value => !value)}>{expanded ? '收起属性 ▴' : '全部属性 ▾'}</button>
     <div className="status-attributes" aria-label="人物属性">
       {DETAIL_STATS.map(stat => <div
         className={`status-attribute ${stat === 'health' && game.stats.health < 35 ? 'critical' : ''}`}

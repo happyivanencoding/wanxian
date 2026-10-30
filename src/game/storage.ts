@@ -1,9 +1,10 @@
 import { ERAS, FOCUSES, HOMES, ITEMS, ORIGINS, REGIONS, ROUTES, SECTS } from './data.ts';
 import { EVENT_MAP } from './events.ts';
-import { archiveLife, earnedAchievements } from './engine.ts';
+import { archiveLife, earnedAchievements, getEvent } from './engine.ts';
 import { isValidExpeditions } from './expeditions.ts';
 import { PREPARATION_METHODS, preparationTarget } from './progression.ts';
 import { NPC_RESPONSE_IDS } from './director.ts';
+import { FACTIONS, HISTORY_CHAPTERS, FAMILIES } from './history.ts';
 import type { Game, Profile } from './types.ts';
 
 export const SAVE_KEY = 'wanxian-life:profile:v1';
@@ -18,8 +19,34 @@ const number = (v: unknown, min = 0, max = 1e12): v is number => typeof v === 'n
 const strings = (v: unknown): v is string[] => Array.isArray(v) && v.every(text);
 const contains = (data: { id: string }[], id: unknown) => text(id) && data.some(d => d.id === id);
 const statKeys = ['health', 'mind', 'insight', 'foundation', 'reputation', 'alchemy', 'combat'];
-const validEffect = (v: unknown) => object(v) && (!v.stats || (object(v.stats) && Object.entries(v.stats).every(([k, n]) => statKeys.includes(k) && number(n, -100, 100)))) && ['stones', 'progress', 'lifespan', 'contribution', 'amount', 'npcRelation', 'rootBoost'].every(k => v[k] === undefined || number(v[k], -100000, 100000)) && (v.item === undefined || contains(ITEMS, v.item)) && (v.flag === undefined || text(v.flag)) && (v.storyPath === undefined || ['guardian', 'lone', 'contract'].includes(v.storyPath as string)) && (v.npcId === undefined || ['peer-0', 'peer-1', 'peer-2', 'peer-3'].includes(v.npcId as string));
+const validEffect = (v: unknown) => object(v) && (!v.stats || (object(v.stats) && Object.entries(v.stats).every(([k, n]) => statKeys.includes(k) && number(n, -100, 100)))) && ['stones', 'progress', 'lifespan', 'contribution', 'amount', 'npcRelation', 'rootBoost'].every(k => v[k] === undefined || number(v[k], -100000, 100000)) && (v.item === undefined || contains(ITEMS, v.item)) && (v.flag === undefined || text(v.flag)) && (v.storyPath === undefined || ['guardian', 'lone', 'contract'].includes(v.storyPath as string)) && (v.npcId === undefined || text(v.npcId));
 const validLog = (l: unknown) => object(l) && number(l.id) && number(l.age, 0, 10000) && text(l.title) && text(l.text) && ['life', 'cultivation', 'encounter', 'world', 'relationship', 'economy', 'ending'].includes(l.kind as string) && typeof l.important === 'boolean';
+function validNPC(n: unknown): n is Game['npcs'][number] {
+  if (!object(n) || !['id', 'name', 'title', 'personality', 'story'].every(k => text(n[k]))) return false;
+  if (!['acquaintance', 'friend', 'benefactor', 'enemy', 'rival', 'companion', 'mentor'].includes(n.role as string)) return false;
+  if (!number(n.realm, 0, 6) || !Number.isInteger(n.realm) || !number(n.relation, 0, 100) || !number(n.aptitude, 0, 100) || !number(n.progress) || !number(n.age, 0, 10000) || !number(n.lifespan, 1, 10000) || !number(n.lastInteraction, -1, 10000) || typeof n.alive !== 'boolean') return false;
+  if (!['meeting', 'family', 'desire', 'grievance'].every(k => n[k] === undefined || text(n[k]))) return false;
+  if (n.region !== undefined && !contains(REGIONS, n.region)) return false;
+  if (n.metAt !== undefined && !number(n.metAt, 0, 10000)) return false;
+  if (n.hostility !== undefined && !number(n.hostility, 0, 100)) return false;
+  if (n.pursuitAt !== undefined && !number(n.pursuitAt, 0, 20000)) return false;
+  if (n.gear !== undefined && (!object(n.gear) || !text(n.gear.name) || !number(n.gear.tier, 0, 5) || !Number.isInteger(n.gear.tier))) return false;
+  if (n.career !== undefined) {
+    const c = n.career;
+    if (!object(c) || !number(c.pace, 0.1, 4) || !number(c.ceiling, 0, 6) || !Number.isInteger(c.ceiling) || !number(c.resources) || !number(c.breakthroughAt, 0, 20000) || !number(c.opportunityAt, 0, 20000)) return false;
+  }
+  return true;
+}
+function validHistory(h: unknown, age: number) {
+  if (!object(h) || !number(h.birthYear, 1, 10000) || !Number.isInteger(h.birthYear) || !number(h.lastYear, (h.birthYear as number) - 1, (h.birthYear as number) + age) || !Number.isInteger(h.lastYear) || !number(h.rng, 0, 4294967295) || !Number.isInteger(h.rng)) return false;
+  if (!object(h.strength) || !FACTIONS.every(f => number((h.strength as ObjectValue)[f.id], 10, 95)) || !object(h.choices) || !object(h.outcomes)) return false;
+  const factions = FACTIONS.map(f => f.id);
+  if (!Object.entries(h.outcomes).every(([id, side]) => HISTORY_CHAPTERS.some(c => c.id === id) && [...factions, 'open'].includes(side as string))) return false;
+  return Object.entries(h.choices).every(([id, choice]) => {
+    const chapter = HISTORY_CHAPTERS.find(c => c.id === id);
+    return chapter && object(choice) && [...chapter.sides, 'open', 'self', 'watch'].includes(choice.side as string) && number(choice.weight, 0, 48);
+  });
+}
 export function validGame(value: unknown): value is Game {
   if (!object(value) || value.version !== 1) return false;
   const g = value;
@@ -40,7 +67,18 @@ export function validGame(value: unknown): value is Game {
   if (!Array.isArray(g.logs) || !g.logs.every(validLog)) return false;
   if (!Array.isArray(g.snapshots) || !g.snapshots.every(s => object(s) && number(s.age, 0, 10000) && number(s.realm, 0, 6) && ['health', 'mind', 'stones', 'progress'].every(k => number(s[k])))) return false;
   if (!Array.isArray(g.delayed) || !g.delayed.every(d => object(d) && number(d.at, 0, 10000) && text(d.title) && text(d.text) && validEffect(d.effect))) return false;
-  if (!Array.isArray(g.npcs) || g.npcs.length !== 4 || !g.npcs.every(n => object(n) && ['id', 'name', 'title', 'personality', 'story'].every(k => text(n[k])) && ['friend', 'rival', 'companion', 'mentor'].includes(n.role as string) && number(n.realm, 0, 6) && Number.isInteger(n.realm) && number(n.relation, 0, 100) && number(n.aptitude, 0, 100) && number(n.progress) && number(n.age, 0, 10000) && number(n.lifespan, 1, 10000) && number(n.lastInteraction, -1, 10000) && typeof n.alive === 'boolean')) return false;
+  if (!Array.isArray(g.npcs) || g.npcs.length > 64 || !g.npcs.every(validNPC) || new Set(g.npcs.map(n => n.id)).size !== g.npcs.length) return false;
+  if (!g.delayed.every(d => !d.effect.npcId || (g.npcs as Game['npcs']).some(npc => npc.id === d.effect.npcId))) return false;
+  if (g.history !== undefined && !validHistory(g.history, g.age as number)) return false;
+  if (g.family !== undefined && !Object.values(FAMILIES).flat().some(family => family.name === g.family)) return false;
+  if (g.fortune !== undefined) {
+    const f = g.fortune;
+    if (!object(f) || !number(f.flow, 0.1, 5) || !number(f.insight, 0, 1) || !['until', 'nextAt', 'impasseUntil'].every(key => number(f[key], 0, 20000))) return false;
+  }
+  if (typeof g.pending === 'string' && (g.pending.startsWith('meet-') || g.pending === 'rival-pursuit')) {
+    if (!getEvent(g as unknown as Game)?.choices.length) return false;
+  }
+  if (typeof g.pending === 'string' && g.pending.startsWith('history-') && !g.history) return false;
   if (g.preparation !== undefined) {
     const p = g.preparation;
     if (!object(p) || Object.keys(p).some(key => !['realm', 'selected', 'progress'].includes(key)) || !Number.isInteger(p.realm) || p.realm !== g.realm || !number(p.realm, 0, 5) || (p.selected !== null && !PREPARATION_METHODS.includes(p.selected as typeof PREPARATION_METHODS[number])) || !object(p.progress)) return false;
@@ -57,6 +95,7 @@ export function validGame(value: unknown): value is Game {
       return record.kind === 'event' && record.actorId === undefined && Boolean(event) && typeof event.id === 'string' && event.kind !== 'turning' && event.kind !== 'routine' && !event.id.startsWith('story-') && !event.id.startsWith('fate-');
     })) return false;
   }
+  if (g.pending && !getEvent(g as unknown as Game)?.choices.length) return false;
   return typeof g.alive === 'boolean' && (g.ending === null || text(g.ending)) && (!g.alive || (g.ending === null && g.realm < 6));
 }
 export function parseProfile(raw: string): Profile {

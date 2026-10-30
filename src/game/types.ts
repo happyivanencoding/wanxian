@@ -3,7 +3,23 @@ export type Stat = 'health' | 'mind' | 'insight' | 'foundation' | 'reputation' |
 export type Stats = Record<Stat, number>;
 export type LogKind = 'life' | 'cultivation' | 'encounter' | 'world' | 'relationship' | 'economy' | 'ending';
 export interface Log { id: number; age: number; title: string; text: string; kind: LogKind; important: boolean; starred?: boolean }
-export interface NPC { id: string; name: string; title: string; personality: string; realm: number; progress: number; aptitude: number; age: number; lifespan: number; alive: boolean; relation: number; role: 'friend' | 'rival' | 'companion' | 'mentor'; lastInteraction: number; story: string }
+export interface NPC {
+  id: string; name: string; title: string; personality: string; realm: number; progress: number; aptitude: number; age: number; lifespan: number; alive: boolean; relation: number;
+  role: 'acquaintance' | 'friend' | 'benefactor' | 'enemy' | 'rival' | 'companion' | 'mentor';
+  lastInteraction: number; story: string;
+  metAt?: number; meeting?: string; region?: string; family?: string; desire?: string;
+  gear?: { name: string; tier: number };
+  career?: { pace: number; ceiling: number; resources: number; breakthroughAt: number; opportunityAt: number };
+  hostility?: number; pursuitAt?: number; grievance?: string;
+}
+export type WorldFaction = 'sword' | 'tide' | 'star' | 'ember' | 'jade';
+export interface WorldHistory {
+  birthYear: number; lastYear: number; rng: number;
+  strength: Record<WorldFaction, number>;
+  choices: Record<string, { side: WorldFaction | 'open' | 'self' | 'watch'; weight: number }>;
+  outcomes: Record<string, WorldFaction | 'open'>;
+}
+export interface CultivationFortune { flow: number; until: number; nextAt: number; insight: number; impasseUntil: number }
 export interface Snapshot { age: number; realm: number; health: number; mind: number; stones: number; progress: number }
 export interface Delayed { at: number; title: string; text: string; effect: Effect }
 export type PreparationMethod = 'temper' | 'meditate' | 'medicine';
@@ -32,6 +48,7 @@ export interface Game {
   actionsLeft: number; cooldownUntil: number; attempts: number; successes: number; totalStones: number; visited: string[]; choices: number;
   alive: boolean; ending: string | null; endingText: string; yearName: string; logSeq: number;
   preparation?: Preparation; expeditions?: ExpeditionState; directorRecords?: DirectorRecord[];
+  history?: WorldHistory; fortune?: CultivationFortune; family?: string;
 }
 export interface Effect {
   stats?: Partial<Stats>; stones?: number; progress?: number; lifespan?: number; contribution?: number;

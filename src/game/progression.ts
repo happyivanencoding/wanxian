@@ -191,10 +191,10 @@ export function companionTraits(g: Game) {
     { id: 'peer-2', traitId: 'pathfinder', traitName: '山野寻路', description: '熟悉山川小径，可在相应秘境中帮助判断退路。' },
     { id: 'peer-3', traitId: 'sword', traitName: '剑意护阵', description: '熟悉剑阵，可在相应遗迹中与你合力护阵。' },
   ];
-  return traits.map(trait => {
+  return traits.filter(trait => g.npcs.some(npc => npc.id === trait.id)).map(trait => {
     const npc = g.npcs.find(n => n.id === trait.id), shared = has(g, `companion-bond:${trait.id}`), required = shared ? 55 : 60;
     const alive = Boolean(npc?.alive && npc.realm < 6), relation = npc?.relation ?? 0;
-    const reason = !alive ? npc?.realm === 6 ? '已经飞升离界' : '已经不在人间' : relation < required ? `情谊达到${required}才能彼此托付` : undefined;
+    const reason = npc?.role === 'enemy' ? '旧怨未了' : !alive ? npc?.realm === 6 ? '已经飞升离界' : '已经不在人间' : relation < required ? `情谊达到${required}才能彼此托付` : undefined;
     return { ...trait, name: npc?.name ?? '旧日同道', description: trait.description + (shared ? '共同经历让你们更容易彼此托付。' : ''), available: !reason, reason, relation, alive, shared };
   });
 }

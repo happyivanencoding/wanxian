@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { expeditionOffers, expeditionView } from '../game/expeditions.ts';
 import { getEvent } from '../game/engine.ts';
 import { REGIONS } from '../game/data.ts';
@@ -17,9 +17,10 @@ export function OpportunityPreview({ game, navigate, openEvent }: PageProps) {
 
 export default function Opportunities({ game, act, openEvent, navigate }: PageProps) {
   const view = expeditionView(game), offers = expeditionOffers(game), event = getEvent(game);
+  const content = useRef<HTMLDivElement>(null);
   const active = view.active, completed = [...view.completed].reverse();
-  useEffect(() => { window.scrollTo({ top: 0, behavior: 'instant' }); }, [active?.id, active?.stage, view.completed.length]);
-  return <div className="page-enter opportunities-page">{!active && <SectionTitle title="山外机缘"/>}
+  useEffect(() => { const body = content.current?.closest<HTMLElement>('.modal-body'); if (body && content.current) body.scrollTop += content.current.getBoundingClientRect().top - body.getBoundingClientRect().top; }, [active?.id, active?.stage, view.completed.length]);
+  return <div ref={content} className="page-enter opportunities-page">{!active && <SectionTitle title="山外机缘"/>}
     {!active && completed.length > 0 && <section className="panel expedition-results" data-testid="expedition-results"><h2>走过之后</h2>{completed.map((result, index) => index === 0 ? <article key={`${result.id}-${result.age}`} className="expedition-result" data-testid="expedition-result"><span className="eyebrow">{result.age}岁 · 已记入年谱</span><h3>{result.title}</h3><p>{result.text}</p></article> : <details className="expedition-result" key={`${result.id}-${result.age}`}><summary>{result.age}岁 · {result.title}</summary><p>{result.text}</p></details>)}</section>}
     {event && !active && <button className="pending-banner" onClick={openEvent}><span className="pending-mark"><Icon name="spark"/></span><div><small>先决定眼前这件事</small><strong>{event.title}</strong></div><Icon name="arrow"/></button>}
     {active ? <section className="panel expedition-active" data-testid="expedition-active">

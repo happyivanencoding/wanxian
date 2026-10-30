@@ -1,3 +1,4 @@
+import { regionalStanding } from './history.ts';
 import type { Effect, Game, Stats } from './types.ts';
 
 /** Runtime, UI and the optional director share this authored catalogue. */
@@ -171,17 +172,21 @@ export const SECTS: SectDefinition[] = [
 export function sectPassive(g: Game): SectDefinition['passive'] { return SECTS.find(s => s.id === g.sect)?.passive ?? {}; }
 export function sectAnnualEffect(g: Game): Effect {
   const sect = SECTS.find(s => s.id === g.sect);
-  return sect ? { ...sect.annual, stones: sect.allowance + g.realm * 5 + g.sectRank * 8 + (sect.annual.stones ?? 0), contribution: 1 } : {};
+  if (!sect) return {};
+  const standing = regionalStanding(g, sect.home);
+  if (standing.label === '闭山') return {};
+  return { ...sect.annual, stones: Math.round((sect.allowance + g.realm * 5 + g.sectRank * 8 + (sect.annual.stones ?? 0)) * standing.income), contribution: 1 };
 }
 export function sectMissionEffect(g: Game): Effect {
-  const task = SECTS.find(s => s.id === g.sect)?.mission;
-  return task ? { stones: task.baseStones + task.realmStones * g.realm, contribution: task.contribution + task.rankContribution * g.sectRank, stats: { ...task.stats }, ...(task.item ? { item: task.item, amount: task.amount ?? 1 } : {}) } : {};
+  const sect = SECTS.find(s => s.id === g.sect), task = sect?.mission;
+  return task && sect ? { stones: Math.round((task.baseStones + task.realmStones * g.realm) * regionalStanding(g, sect.home).income), contribution: task.contribution + task.rankContribution * g.sectRank, stats: { ...task.stats }, ...(task.item ? { item: task.item, amount: task.amount ?? 1 } : {}) } : {};
 }
 export function sectStudyEffect(g: Game): Effect { return { progress: 16 + g.realm * 6, stats: { foundation: 5, insight: 3 } }; }
 export function sectEntryReason(g: Game, id: string): string | undefined {
   const sect = SECTS.find(s => s.id === id);
   if (!sect) return '没有这个宗门';
   if (g.sect) return '已在宗门中，需先离宗';
+  if (regionalStanding(g, sect.home).label === '闭山') return '山门闭守，暂不收徒';
   if (g.region !== sect.home) return '尚未抵达当地山门';
   if (g.realm < sect.minRealm) return '境界尚未达到入门要求';
   if (g.stats.reputation < sect.reputation) return `入门需要${sect.reputation}声望`;

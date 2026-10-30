@@ -53,8 +53,14 @@ export const HOMES = [
   { id: 'library', name: '藏经书架', icon: 'book', cost: 65, max: 3, description: '每级增加 0.4 点年度悟性；参悟时收益翻倍。' },
   { id: 'garden', name: '灵草药圃', icon: 'leaf', cost: 85, max: 3, description: '每级每年产 1 株灵草，云泽再额外产 1 株。' },
 ];
-export interface Item { id: string; name: string; mark: string; kind: 'material' | 'pill' | 'gear' | 'book'; price: number; minRealm: number; description: string; effect?: Effect; market?: boolean; source?: string }
+export interface Item { id: string; name: string; mark: string; kind: 'material' | 'pill' | 'gear' | 'book' | 'relic'; price: number; minRealm: number; description: string; effect?: Effect; market?: boolean; source?: string }
+export const gearTier = (item: Item | undefined) => !item || item.kind !== 'gear' ? 0 : item.source ? Math.min(5, 2 + item.minRealm) : item.id === 'talisman' ? 2 : 1;
 export const ITEMS: Item[] = [
+  { id: 'relic-jade', name: '裂纹玉片', mark: '珏', kind: 'relic', price: 0, minRealm: 0, market: false, description: '泉下拾得。夜里微温，断口有细密刻痕。' },
+  { id: 'relic-bell', name: '听潮铃', mark: '铃', kind: 'relic', price: 0, minRealm: 0, market: false, description: '船上的旧铃。铜舌不动，海风吹过时偶有微声。' },
+  { id: 'relic-stardust', name: '照夜星砂', mark: '砂', kind: 'relic', price: 0, minRealm: 0, market: false, description: '剑冢里带出的细砂，暗处泛起星光。' },
+  { id: 'relic-scabbard', name: '残鞘', mark: '鞘', kind: 'relic', price: 0, minRealm: 0, market: false, description: '鞘口留着一道剑痕，里面早已没有剑。' },
+  { id: 'relic-seal', name: '无字铜牌', mark: '牌', kind: 'relic', price: 0, minRealm: 0, market: false, description: '只有浅浅旧印，难以辨认。' },
   { id: 'herb', name: '青灵草', mark: '草', kind: 'material', price: 8, minRealm: 0, description: '炼丹常用材料。采药、历练与药圃均可产出。' },
   { id: 'jade', name: '温润灵玉', mark: '玉', kind: 'material', price: 24, minRealm: 0, description: '凝灵丹的辅材，可在历练中偶得。' },
   { id: 'heal', name: '回春丹', mark: '春', kind: 'pill', price: 28, minRealm: 0, description: '服用恢复 24 点体魄。', effect: { stats: { health: 24 } } },

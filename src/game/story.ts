@@ -66,7 +66,7 @@ export function activateStoryPath(g: Game, path: StoryPath) {
   g.flags = g.flags.filter(flag => !flag.startsWith('story-active-'));
   add(g, `story-active-${path}`); add(g, `fate-${path}`);
   if (!g.flags.some(flag => flag.startsWith(`story-person:${path}:`))) {
-    const person = storyPerson(g, path);
+    const person = storyPerson(g, path) ?? (previous ? storyPerson(g, previous) : undefined);
     if (person) add(g, `story-person:${path}:${person.id}`);
   }
   if (!g.flags.some(flag => flag.startsWith(`story-began:${path}:`))) add(g, `story-began:${path}:${g.age}`);
@@ -107,6 +107,8 @@ export function nextStoryEvent(g: Game, roll: number): string | undefined {
       1 + (has(g, 'vow-dao') || has(g, 'cave-studied') ? 4 : 0) + (g.origin === 'clan' || g.route === 'sword' ? 2 : 0) + (g.focus === 'study' ? 3 : 0),
       1 + (has(g, 'vow-world') || has(g, 'saved-merchant') ? 4 : 0) + (g.origin === 'merchant' || g.origin === 'wanderer' ? 3 : 0) + (g.region !== (g.visited[0] ?? 'qinglan') || g.focus === 'work' ? 2 : 0),
     ];
+    paths.forEach((path, index) => { const npc = storyPerson(g, path); if (!npc || npc.role === 'enemy') weights[index] = 0; });
+    if (!weights.some(Boolean)) return;
     let ticket = roll * weights.reduce((sum, value) => sum + value, 0);
     return `story-call-${paths[weights.findIndex((weight, i) => (ticket -= weight) < 0 || i === weights.length - 1)]}`;
   }
@@ -138,6 +140,7 @@ export function getStoryEvent(g: Game, id: string): EventDef | undefined {
   if (!base) return;
   const path = paths.find(p => id.includes(`-${p}`))!;
   const { person, name, arrival, echo } = personWords(g, path);
+  if (!person) return;
   const relation = (amount: number): Effect => person ? { npcId: person.id, npcRelation: amount } : {};
   const result = (text: string, cause: string, choices: Choice[]): EventDef => ({ ...base, text, cause, choices });
   if (id.startsWith('story-call-')) {
@@ -150,7 +153,7 @@ export function getStoryEvent(g: Game, id: string): EventDef | undefined {
       c('应下托付，与一城人互相照应', '守望人间：承担护城供养；声望 +6、道心 +5', { storyPath: 'guardian', stats: { reputation: 6, mind: 5 } }, `你把名字写进守望簿。${guardian}的旧愿从此与你相连，今后的安居与离散都会留下痕迹。`),
       c('带着残卷，去孤峰寻找答案', '孤峰问道：修炼加快，身心消耗增加；悟性 +6、修为 +15', { storyPath: 'lone', stats: { insight: 6 }, progress: 15 }, `你带走${lone}经手的残卷。此后要研究什么、与谁分享，会决定这份传承的去处。`),
       c('沿着商路，去看山外的生活', '山河商路：每年盟约收入，修行略慢；灵石 +30', { storyPath: 'contract', stones: 30 }, `你接下${trader}留下的行路图。路上的供给与信任，从此也是你要经营的人生。`),
-    ]);
+    ].filter(choice => { const actor = storyPerson(g, choice.effect.storyPath!); return Boolean(actor && actor.role !== 'enemy'); }));
   }
   switch (id) {
     case 'story-guardian-healing':

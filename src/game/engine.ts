@@ -1,5 +1,9 @@
 import { ACHIEVEMENTS, ERAS, FOCUSES, GIVEN_NAMES, HOMES, ITEMS, ORIGINS, REALMS, RECIPES, REGIONS, ROUTES, SECTS, SECT_RANKS, SURNAMES, WORLD_PHASES } from './data.ts';
 import { CHILD_EVENTS, EVENTS, EVENT_MAP } from './events.ts';
+import { FAMILIES, advanceHistory, historyConditions, initializeHistory, nextHistoryEvent, getHistoryEvent, recordHistoryChoice, resonateRelics } from './history.ts';
+import { advanceCultivation, cultivationFlow, cultivationInsight } from './cultivation.ts';
+import { bindRelationshipEvent, getRelationshipEvent, growRelationships, nextRelationshipEvent, recordRelationshipChoice } from './relationships.ts';
+import { gearTier } from './data.ts';
 import { fateInfluence } from './fate.ts';
 import { activateStoryPath, getStoryEvent, nextStoryEvent, recordStoryChoice, storyAnnualEffects, storyLegacy, storyTravelMultiplier } from './story.ts';
 import { advancePreparation, completePreparation, learnSectSpecialty, preparationChance, preparationState, preparationTarget, progressionBenefits, selectPreparation } from './progression.ts';
@@ -30,12 +34,12 @@ export const realmName = (g: Pick<Game, 'realm' | 'progress'>) => {
   if (g.realm === 0 || g.realm === 6) return realm.name;
   return realm.name + (g.progress >= realm.need ? '圆满' : g.progress / realm.need < 0.34 ? '初期' : g.progress / realm.need < 0.7 ? '中期' : '后期');
 };
-export const worldPhase = (g: Pick<Game, 'age'>) => WORLD_PHASES[Math.floor(g.age / 20) % WORLD_PHASES.length];
+export const worldPhase = (g: Pick<Game, 'age'> & Partial<Pick<Game, 'history' | 'region'>>) => historyConditions(g);
 export const currentRegion = (g: Pick<Game, 'region'>) => REGIONS.find(r => r.id === g.region)!;
 export const currentEra = (g: Pick<Game, 'era'>) => ERAS.find(e => e.id === g.era)!;
-export const itemPrice = (g: Game, id: string) => Math.ceil(ITEMS.find(i => i.id === id)!.price * currentEra(g).price);
+export const itemPrice = (g: Game, id: string) => Math.ceil(ITEMS.find(i => i.id === id)!.price * currentEra(g).price * historyConditions(g).price);
 export const homePrice = (g: Game, id: string) => Math.ceil(HOMES.find(h => h.id === id)!.cost * Math.pow(1.85, g.home[id] || 0));
-export const travelPrice = (g: Game, id: string) => Math.ceil(REGIONS.find(region => region.id === id)!.cost * storyTravelMultiplier(g));
+export const travelPrice = (g: Game, id: string) => Math.ceil(REGIONS.find(region => region.id === id)!.cost * storyTravelMultiplier(g) * historyConditions(g, id).travel);
 export const craftChance = (g: Game) => clamp(0.55 + g.stats.alchemy * 0.003 + (g.home.furnace || 0) * 0.08 + (g.route === 'alchemy' ? 0.08 : 0) + progressionBenefits(g).craftChance, 0.1, 0.98);
 export function trainingFactors(g: Game) {
   return {
@@ -47,11 +51,12 @@ export function trainingFactors(g: Game) {
     fate: fateInfluence(g).training,
     attainments: progressionBenefits(g).training,
     life: lifeTrainingMultiplier(g),
+    fortune: cultivationFlow(g),
   };
 }
 export const trainingRate = (g: Game) => {
   const f = trainingFactors(g);
-  return round(f.base * f.realm * f.region * f.era * f.phase * f.preparation * f.mind * f.health * f.fate * f.attainments * f.life);
+  return round(f.base * f.realm * f.region * f.era * f.phase * f.preparation * f.mind * f.health * f.fate * f.attainments * f.life * f.fortune);
 };
 export function breakthroughFactors(g: Game, usePill = false) {
   return [
@@ -66,6 +71,7 @@ export function breakthroughFactors(g: Game, usePill = false) {
     { label: '体魄未充盈', value: -Math.max(0, 75 - g.stats.health) * 0.0028 },
     { label: '一生道路的积累', value: fateInfluence(g).chance },
     { label: '本境持续准备', value: preparationChance(g) },
+    { label: '顿悟与瓶颈', value: cultivationInsight(g) },
     { label: '此生所学本领', value: progressionBenefits(g).breakthrough },
     { label: '禁术后患', value: g.flags.includes('forbidden-art') ? -0.07 : 0 },
   ];
@@ -85,12 +91,23 @@ function gain(g: Game, effect: Effect = {}) {
   if (effect.progress) g.progress = round(clamp(g.progress + effect.progress, 0, REALMS[g.realm].need));
   if (effect.lifespan) g.lifespan = Math.max(1, Math.round(g.lifespan + effect.lifespan));
   if (effect.contribution && g.sect) g.contribution = Math.max(0, g.contribution + effect.contribution);
-  if (effect.item) g.inventory[effect.item] = (g.inventory[effect.item] || 0) + (effect.amount ?? 1);
+  if (effect.item) {
+    g.inventory[effect.item] = (g.inventory[effect.item] || 0) + (effect.amount ?? 1);
+    const item = ITEMS.find(entry => entry.id === effect.item);
+    if (item && g.realm >= item.minRealm && item.kind === 'book' && item.effect && !g.flags.includes(item.effect.flag ?? '')) {
+      g.inventory[item.id]--;
+      gain(g, item.effect);
+      log(g, '读通一卷旧书', `${item.name}：${item.description}`, 'cultivation', true);
+    } else if (item?.kind === 'gear' && g.realm >= item.minRealm && gearTier(item) > gearTier(ITEMS.find(entry => entry.id === g.equipped))) {
+      g.equipped = item.id;
+      log(g, '法宝随身', `你将${item.name}佩在身边。`, 'cultivation');
+    }
+  }
   if (effect.flag && !g.flags.includes(effect.flag)) g.flags.push(effect.flag);
   if (effect.storyPath) activateStoryPath(g, effect.storyPath);
   if (effect.rootBoost) g.aptitude = clamp(g.aptitude + effect.rootBoost, 15, 100);
   if (effect.npcRelation) {
-    const friend = effect.npcId ? g.npcs.find(npc => npc.id === effect.npcId && npc.alive) : g.npcs.find(npc => npc.alive && npc.role !== 'rival');
+    const friend = effect.npcId ? g.npcs.find(npc => npc.id === effect.npcId && npc.alive) : g.npcs.find(npc => npc.alive && !['rival', 'enemy'].includes(npc.role));
     if (friend) friend.relation = round(clamp(friend.relation + effect.npcRelation));
   }
 }
@@ -145,14 +162,9 @@ export function createGame(config: BirthConfig): Game {
   if (config.guided) g.direction = 'seek';
   const talentEffects: Record<string, Effect> = { 心如止水: { stats: { mind: 10 } }, 勤学不辍: { stats: { insight: 9 } }, 筋骨强健: { stats: { health: 10, foundation: 4 } }, 草木亲和: { stats: { alchemy: 12 } }, 剑心初生: { stats: { combat: 12 } } };
   gain(g, talentEffects[talent]);
-  const usedNames = new Set([name]);
-  for (let i = 0; i < 4; i++) {
-    let npcName = pick(g, SURNAMES) + pick(g, GIVEN_NAMES);
-    while (usedNames.has(npcName)) npcName = pick(g, SURNAMES) + pick(g, GIVEN_NAMES);
-    usedNames.add(npcName);
-    g.npcs.push({ id: `peer-${i}`, name: npcName, title: ['世家后人', '药师之子', '山野少年', '剑阁遗孤'][i], personality: ['锐意进取', '温厚沉稳', '随性洒脱', '清冷执着'][i], realm: 0, progress: 0, aptitude: integer(g, 30, 88), age: 0, lifespan: integer(g, 78, 92), alive: true, relation: i === 3 ? 25 : integer(g, 32, 48), role: i === 3 ? 'rival' : 'friend', lastInteraction: -1, story: '与你生于同一年，也将走向自己的山河。' });
-  }
-  log(g, `此生，始于${region.name}`, `${name}出身${origin.name}，生于${region.name}，身逢${era.name}。${origin.description}`, 'life', true);
+  initializeHistory(g, random);
+  if (['clan', 'merchant'].includes(g.origin)) g.family = pick(g, FAMILIES[g.region]).name;
+  log(g, `此生，始于${region.name}`, `${name}出身${origin.name}${g.family ? `，与${g.family}一族相连` : ''}，生于${region.name}。${origin.description}`, 'life', true);
   log(g, '命格初现', `${g.root}，先天资质 ${g.aptitude}。天赋「${g.talent}」。${noRoot ? '你将以体修之路寻找自己的仙缘。' : '出身决定起点，未必决定终点。'}`, 'life', true);
   snapshot(g);
   if (config.fastStart) {
@@ -165,13 +177,17 @@ export function createGame(config: BirthConfig): Game {
 }
 
 export function eventEligible(g: Game, e: EventDef): boolean {
-  if (['wounded-friend', 'tea', 'letter', 'chess'].includes(e.id) && !g.npcs.some(npc => npc.alive)) return false;
+  if (['wounded-friend', 'tea', 'letter', 'chess'].includes(e.id) && !g.npcs.some(npc => npc.alive && npc.role !== 'enemy')) return false;
   return g.alive && g.age >= (e.minAge ?? 0) && g.age <= (e.maxAge ?? 9999) && g.realm >= (e.minRealm ?? 0) && g.realm <= (e.maxRealm ?? 6)
     && (!e.focus || e.focus === g.focus) && (!e.region || e.region === g.region) && (!e.flag || g.flags.includes(e.flag)) && (!e.notFlag || !g.flags.includes(e.notFlag))
     && (!e.sect || Boolean(g.sect)) && !(e.once && g.seen[e.id] !== undefined) && (g.seen[e.id] === undefined || g.age - g.seen[e.id] >= (e.cooldown ?? 6));
 }
 export function getEvent(g: Game, id: string | null = g.pending): EventDef | undefined {
   if (!id) return;
+  const relationship = getRelationshipEvent(g, id);
+  if (relationship) return relationship;
+  const historical = getHistoryEvent(g, id);
+  if (historical) return historical;
   const life = getLifeEvent(g, id);
   if (life) return life;
   const story = getStoryEvent(g, id);
@@ -180,9 +196,9 @@ export function getEvent(g: Game, id: string | null = g.pending): EventDef | und
   if (!original) return;
   if (id === 'wounded-friend') {
     const saved = g.flags.find(flag => flag.startsWith('wounded-person:'))?.slice('wounded-person:'.length);
-    const person = saved ? g.npcs.find(npc => npc.id === saved) : g.npcs.find(npc => npc.alive && npc.role !== 'rival') ?? g.npcs.find(npc => npc.alive);
+    const person = saved ? g.npcs.find(npc => npc.id === saved) : g.npcs.find(npc => npc.alive && !['rival', 'enemy'].includes(npc.role)) ?? g.npcs.find(npc => npc.alive);
     if (person) return { ...original,
-      text: person.alive ? `${person.name}重伤而归。门外放着一把断剑，屋内迟迟没有灯火。你们生于同年，如今这段相识来到了需要回应的时候。` : `${person.name}${person.realm === 6 ? '已飞升离界' : '已经离世'}。旧日托存的病中手记辗转来到你手里，记着那段未能相见的日子。`,
+      text: person.alive ? `${person.name}重伤而归。门外放着一把断剑，屋内迟迟没有灯火。你认得那把剑。如今这段相识来到了需要回应的时候。` : `${person.name}${person.realm === 6 ? '已飞升离界' : '已经离世'}。旧日托存的病中手记辗转来到你手里，记着那段未能相见的日子。`,
       choices: original.choices.map((choice, index) => ({ ...choice,
         ...(!person.alive ? { label: ['替旧日的救治留下资助', '把旧医方整理给后来者', '收好手记，暂不重读'][index], hint: choice.hint.replace(/情谊 \+\d+ · ?/, '') } : {}),
         effect: { ...choice.effect, npcId: person.id },
@@ -196,20 +212,28 @@ export function requiresPlayerChoice(g: Game): boolean {
   return Boolean(g.expeditions?.active || (g.pending && getEvent(g)?.kind === 'turning'));
 }
 function openEvent(g: Game, id: string) {
+  bindRelationshipEvent(g, id, { random, log, gain });
   bindLifeEvent(g, id);
   if (id === 'wounded-friend' && !g.flags.some(flag => flag.startsWith('wounded-person:'))) {
-    const person = g.npcs.find(npc => npc.alive && npc.role !== 'rival') ?? g.npcs.find(npc => npc.alive);
+    const person = g.npcs.find(npc => npc.alive && !['rival', 'enemy'].includes(npc.role)) ?? g.npcs.find(npc => npc.alive);
     if (person) g.flags.push(`wounded-person:${person.id}`);
   }
+  if (!getEvent(g, id)?.choices.length) return;
   g.pending = id; g.seen[id] = g.age;
+  if (id.startsWith('history-')) resonateRelics(g, { random, log, gain });
 }
 function selectEvent(g: Game, director?: DirectorControl) {
   const forced = CHILD_EVENTS.get(g.age);
   if (forced && g.seen[forced] === undefined) { openEvent(g, forced); return; }
-  if (g.age < 16) return;
   const seenEntries = Object.entries(g.seen);
   const lastManual = Math.max(0, ...seenEntries.filter(([id]) => EVENT_MAP[id]?.kind !== 'routine').map(([, age]) => age));
   const lastRoutine = Math.max(0, ...seenEntries.filter(([id]) => EVENT_MAP[id]?.kind === 'routine').map(([, age]) => age));
+  const relationship = nextRelationshipEvent(g, random(g));
+  if (relationship === 'rival-pursuit') { openEvent(g, relationship); return; }
+  const historical = nextHistoryEvent(g);
+  if (historical && g.age - lastManual >= 6) { openEvent(g, historical); return; }
+  if (relationship && g.age - lastManual >= (g.age < 16 ? 2 : 6)) { openEvent(g, relationship); return; }
+  if (g.age < 16) return;
   const life = nextLifeEvent(g);
   if (life && g.age - lastManual >= 6) { openEvent(g, life); return; }
   const story = nextStoryEvent(g, random(g));
@@ -263,45 +287,43 @@ function resolveChoice(g: Game, index: number, automatic = false): string | null
   if (choice.cost) g.stones -= choice.cost;
   const success = choice.chance === undefined || random(g) < choice.chance;
   gain(g, success ? choice.effect : choice.failure);
-  if (success) recordStoryChoice(g, event, choice);
+  if (success) {
+    recordStoryChoice(g, event, choice);
+    recordHistoryChoice(g, event, choice);
+  }
+  const fatalConflict = recordRelationshipChoice(g, event, choice, success, { random, log, gain });
   if (!automatic) g.choices++;
   log(g, event.title, `${event.cause ? event.cause + ' ' : ''}${automatic ? '岁月中自然发生：' : ''}${choice.label}。${success ? choice.successText || choice.hint : choice.failureText || '未能如愿，但这段经历仍留在你的生命里。'}`, event.category, !automatic || event.id.startsWith('story-'));
   if (success && choice.delayed) { const { after, ...later } = choice.delayed; g.delayed.push({ at: g.age + after, ...later }); }
   g.pending = null;
+  if (fatalConflict) finish(g, '旧怨中陨落', fatalConflict);
   checkLife(g); snapshot(g);
   return null;
 }
 function growNPCs(g: Game) {
-  for (const npc of g.npcs) {
-    if (!npc.alive) continue;
-    npc.age++;
-    if (npc.age >= 6 && npc.realm < 6) {
-      npc.progress += (2 + npc.aptitude / 14) * [1, 1.1, 1.4, 1.8, 2.3, 2.8][npc.realm] * currentEra(g).spirit * npcLifeFactors(g, npc).training;
-      if (npc.progress >= REALMS[npc.realm].need && npc.age >= 16) {
-        if (random(g) < 0.47 + npc.aptitude * 0.002 - npc.realm * 0.055) {
-          npc.realm++; npc.progress = 0; npc.lifespan = npc.realm === 6 ? 9999 : Math.max(npc.lifespan, REALMS[npc.realm].life + integer(g, -8, 10));
-          npc.story = `${npc.age}岁，踏入${REALMS[npc.realm].name}境。`;
-          log(g, npc.realm === 6 ? '故人飞升' : '同道传来喜讯', `${npc.name}${npc.realm === 6 ? '离开了此方天地，你们的旧日约定成为一段传说。' : `在${npc.age}岁突破${REALMS[npc.realm].name}。`}`, 'relationship', true);
-          if (npc.realm === 6) { npc.alive = false; npc.story = `${npc.age}岁白日飞升，已离开此方世界。`; }
-        } else { npc.progress *= 0.65; npc.story = `${npc.age}岁突破失利，正在重新积蓄修为。`; }
-      }
-    }
-    if (npc.alive && (npc.age >= npc.lifespan || (npc.age >= 20 && random(g) < 0.0013 * currentEra(g).risk * npcLifeFactors(g, npc).risk))) {
-      npc.alive = false;
-      npc.story = `${npc.age}岁${npc.age >= npc.lifespan ? '寿终坐化' : '在一次历练中陨落'}。`;
-      log(g, '故人远去', `${npc.name}${npc.story}当初与你一同出发的人，又少了一位。`, 'relationship', true);
-      if (npc.relation > 55) gain(g, { stats: { mind: -8 } });
-    }
-    if (npc.alive && g.age % 6 === 0 && g.focus !== 'social') npc.relation = round(clamp(npc.relation - (npc.role === 'companion' ? 0.5 : 1.5)));
-    if (npc.alive && npc.role === 'companion') gain(g, { stats: { mind: 0.8 } });
+  growRelationships(g, { random, log, gain }, npcLifeFactors);
+}
+function tendBelongings(g: Game) {
+  if (!g.direction || g.age < 16) return;
+  const needs: [string, boolean][] = [['heal', g.stats.health < 50], ['calm', g.stats.mind < 40], ['longevity', g.lifespan - g.age <= 10 && g.flags.filter(flag => flag.startsWith('longevity-')).length < 3]];
+  for (const [id, needed] of needs) {
+    if (!needed || !(g.inventory[id] > 0)) continue;
+    const item = ITEMS.find(entry => entry.id === id)!;
+    g.inventory[id]--;
+    gain(g, item.effect!);
+    if (id === 'longevity') g.flags.push(`longevity-${g.flags.filter(flag => flag.startsWith('longevity-')).length + 1}`);
+    log(g, '随身的药', `${item.name}：${item.description}`, 'cultivation');
   }
 }
 function advanceOne(g: Game, director?: DirectorControl) {
   if (!g.alive || g.pending || g.expeditions?.active) return;
   g.age++; g.actionsLeft = 3;
+  advanceHistory(g, { random, log, gain });
+  tendBelongings(g);
   arrangeLife(g);
+  advanceCultivation(g, { random, log, gain });
   growNPCs(g);
-  if (g.age % 20 === 0) log(g, worldPhase(g).name, worldPhase(g).description, 'world');
+  resonateRelics(g, { random, log, gain });
   const due = g.delayed.filter(d => d.at <= g.age);
   g.delayed = g.delayed.filter(d => d.at > g.age);
   for (const delayed of due) { gain(g, delayed.effect); log(g, delayed.title, delayed.text, 'encounter', true); }
@@ -321,7 +343,7 @@ function advanceOne(g: Game, director?: DirectorControl) {
         case 'work': gain(g, { progress: rate * 0.2, stones: (14 + 16 * r) * worldPhase(g).income * (g.route === 'alchemy' ? 1.15 : 1) + learned.workIncome, stats: { health: -0.6 } }); break;
         case 'alchemy': gain(g, { progress: rate * 0.3, stones: 5 + 4 * r, item: 'herb', amount: 2 + Math.floor(r / 2) + (g.region === 'river' ? 1 : 0) + (worldPhase(g).name === '百草丰年' ? 1 : 0), stats: { alchemy: g.route === 'alchemy' ? 2.2 : 1.5 } }); break;
         case 'rest': gain(g, { progress: rate * 0.12, stats: { health: 10 + learned.restHealth, mind: 8 + g.home.mat * 2 + learned.restMind } }); break;
-        case 'social': gain(g, { progress: rate * 0.35, stats: { mind: 6, reputation: 0.5 } }); for (const npc of g.npcs.filter(n => n.alive)) npc.relation = round(clamp(npc.relation + 1.2)); break;
+        case 'social': gain(g, { progress: rate * 0.35, stats: { mind: 6, reputation: 0.5 } }); for (const npc of g.npcs.filter(n => n.alive && n.role !== 'enemy')) npc.relation = round(clamp(npc.relation + 1.2)); break;
         case 'adventure': {
           gain(g, { progress: rate * 0.8 * learned.adventureTraining, stones: (8 + r * 8) * (g.region === 'desert' ? 1.6 : 1) * (g.route === 'sword' ? 1.25 : 1) * (g.era === 'chaos' ? 1.25 : 1) * learned.adventureIncome, stats: { combat: 1.8 } });
           if (random(g) < 0.45) gain(g, { item: 'herb', amount: integer(g, 1, 3) });
@@ -445,8 +467,9 @@ function perform(g: Game, action: Action, director?: DirectorControl): string | 
   if (action.type === 'buy' || action.type === 'sell' || action.type === 'use') {
     const item = ITEMS.find(i => i.id === action.id);
     if (!item) return '没有这件物品';
+    if (item.kind === 'relic') return '此物暂且留在行囊中';
     if (action.type === 'buy') {
-      if (item.market === false) return '这件法宝来自宗门传授，坊市没有出售';
+      if (item.market === false) return '坊市没有出售此物';
       if (g.realm < item.minRealm) return '境界不足，无法购得此物';
       const price = itemPrice(g, item.id);
       if (g.stones < price) return '灵石不足';
@@ -538,6 +561,7 @@ function perform(g: Game, action: Action, director?: DirectorControl): string | 
   } else if (action.type === 'npc') {
     const npc = g.npcs.find(n => n.id === action.id);
     if (!npc || !npc.alive) return '这位同道已经不在人间';
+    if (npc.role === 'enemy') return '旧怨未了，对方不肯相聚';
     if (npc.lastInteraction === g.age) return '今年已与这位同道相聚，来年再访';
     if (action.interaction === 'talk') {
       npc.relation = clamp(npc.relation + 7); gain(g, { stats: { mind: 3, insight: 1 } });
@@ -551,13 +575,14 @@ function perform(g: Game, action: Action, director?: DirectorControl): string | 
       gain(g, { stats: { health: -damage, combat: 4, foundation: 2 } }); npc.relation = clamp(npc.relation + 3);
       log(g, '切磋印证', `与${npc.name}切磋，战技增加4、根基增加2，体魄损耗${damage}。`, 'relationship');
     } else if (action.interaction === 'bond') {
-      if (g.age < 18) return '成年后才能结为道侣';
+      if (g.age < 18 || npc.age < 18) return '双方成年后才能结为道侣';
       if (npc.relation < 75) return '情谊达到75后才可缔结道侣';
       if (g.npcs.some(n => n.alive && n.role === 'companion')) return '已有一位仍在人间的道侣';
       npc.role = 'companion'; npc.relation = clamp(npc.relation + 10);
       gain(g, { stats: { mind: 12 } });
       log(g, '愿同看山河', `你与${npc.name}结为道侣。各自修行，也在岁月中彼此照应。每年道心恢复0.8。`, 'relationship', true);
     } else return '未知的互动';
+    if (npc.role === 'acquaintance' && npc.relation >= 50) npc.role = 'friend';
     npc.lastInteraction = g.age;
     // A fatal sparring injury is settled before any response; no model reply can undo death.
     checkLife(g);

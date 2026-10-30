@@ -28,11 +28,11 @@ const springMedicine = (a: Active) => marked(a, 'medicine') || marked(a, 'healer
 const peer = (g: Game, id: string) => g.npcs.find(n => n.id === id);
 function friendReady(g: Game, id: string): boolean {
   const npc = peer(g, id);
-  return !!npc?.alive && npc.relation >= (has(g, `companion-bond:${id}`) ? 55 : 60);
+  return !!npc?.alive && npc.role !== 'enemy' && npc.relation >= (has(g, `companion-bond:${id}`) ? 55 : 60);
 }
 function friendReason(g: Game, id: string): string | undefined {
   const npc = peer(g, id);
-  return !npc?.alive ? '这位同道已不在人间' : !friendReady(g, id) ? `情谊需达到${has(g, `companion-bond:${id}`) ? 55 : 60}` : undefined;
+  return !npc ? '尚未遇见这样的同伴' : npc.role === 'enemy' ? '旧怨未了' : !npc.alive ? '这位同道已不在人间' : !friendReady(g, id) ? `情谊需达到${has(g, `companion-bond:${id}`) ? 55 : 60}` : undefined;
 }
 const name = (g: Game, id: string) => peer(g, id)?.name ?? '旧识';
 const art = (g: Game, id: 'qinglan' | 'herb' | 'star') => hasSectArt(g, { qinglan: 'sword', herb: 'medicine', star: 'formation' }[id] as 'sword' | 'medicine' | 'formation');
@@ -46,7 +46,7 @@ const choice = (id: string, label: string, hint: string, disabled?: string): Exp
 function visible(g: Game, id: ExpeditionId): boolean {
   const def = definitions[id];
   if (g.realm < def.minRealm || g.realm > def.maxRealm || g.expeditions?.completed.some(e => e.id === id)) return false;
-  if (id === 'rescue') return !!peer(g, 'peer-1')?.alive && ((peer(g, 'peer-1')?.relation ?? 0) >= 45 || has(g, 'story-clinic'));
+  if (id === 'rescue') return !!peer(g, 'peer-1')?.alive && peer(g, 'peer-1')?.role !== 'enemy' && ((peer(g, 'peer-1')?.relation ?? 0) >= 45 || has(g, 'story-clinic'));
   if (id === 'observatory') return ['exp-spring-clear', 'exp-spring-vein', 'exp-tomb-ward', 'cave-studied', 'story-research', 'story-fieldnotes'].some(flag => has(g, flag));
   return true;
 }

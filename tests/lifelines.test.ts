@@ -1,3 +1,4 @@
+import { withLegacyPeers } from './fixtures.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { act, autoStep, createGame, getEvent, planDirectedAction, trainingRate } from '../src/game/engine.ts';
@@ -10,7 +11,7 @@ import type { Game } from '../src/game/types.ts';
 
 const config = { name: '林听澜', gender: '女修', origin: 'merchant', era: 'peace', route: 'balanced', region: 'qinglan', mode: 'seeker' as const, fastStart: false, seed: 'life-design' };
 function adult(): Game {
-  const g = createGame(config);
+  const g = withLegacyPeers(createGame(config));
   g.age = 40; g.realm = 2; g.lifespan = 260; g.progress = 100; g.stones = 300;
   g.stats = { health: 85, mind: 80, insight: 60, foundation: 60, alchemy: 20, combat: 40, reputation: 35 };
   for (const npc of g.npcs) { npc.age = 40; npc.realm = 2; npc.lifespan = 260; npc.relation = 60; }

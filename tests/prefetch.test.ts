@@ -1,3 +1,4 @@
+import { withLegacyPeers, ordinaryYear } from './fixtures.ts';
 import test from 'node:test';
 import { LIFE_EVENTS } from '../src/game/lifelines.ts';
 import assert from 'node:assert/strict';
@@ -25,14 +26,14 @@ function controlledClient() {
 }
 async function flushReplies() { await Promise.resolve(); await Promise.resolve(); }
 function nextYearFixture(): Game {
-  const g = createGame({ name: '预取边界', gender: '随缘', origin: 'merchant', era: 'peace', route: 'balanced', region: 'qinglan', mode: 'seeker', fastStart: true, seed: 'prefetch-browser' });
+  const g = withLegacyPeers(createGame({ name: '预取边界', gender: '随缘', origin: 'merchant', era: 'peace', route: 'balanced', region: 'qinglan', mode: 'seeker', fastStart: true, seed: 'prefetch-browser' }));
   g.age = 40; g.realm = 2; g.progress = 50; g.lifespan = 260; g.stones = 160; g.focus = 'adventure'; g.pending = null;
   g.seen['story-call-guardian'] = 20;
   for (const event of LIFE_EVENTS) g.seen[event.id] = 20;
   g.stats = { health: 70, mind: 60, insight: 55, foundation: 55, alchemy: 30, combat: 40, reputation: 35 };
   for (const npc of g.npcs) { npc.age = 40; npc.realm = 2; npc.lifespan = 260; npc.relation = 65; npc.progress = 0; }
   g.rng = 65537;
-  return g;
+  return ordinaryYear(g);
 }
 
 test('previewing next year never advances life; a pending prefetch immediately yields the seeded local year', async () => {

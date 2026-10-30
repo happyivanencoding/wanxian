@@ -1,3 +1,4 @@
+import { withLegacyPeers, handledWorldTurns } from './fixtures.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { act, breakthroughFactors, createGame, trainingFactors } from '../src/game/engine.ts';
@@ -11,7 +12,7 @@ import { validGame } from '../src/game/storage.ts';
 import type { Action, Game } from '../src/game/types.ts';
 
 function ready(): Game {
-  const g = createGame({ name: '沈行远', gender: '随缘', origin: 'village', era: 'peace', route: 'balanced', region: 'qinglan', mode: 'seeker', fastStart: false, seed: 'twenty-sects' });
+  const g = withLegacyPeers(createGame({ name: '沈行远', gender: '随缘', origin: 'village', era: 'peace', route: 'balanced', region: 'qinglan', mode: 'seeker', fastStart: false, seed: 'twenty-sects' }));
   Object.assign(g, { age: 26, realm: 2, lifespan: 260, stones: 1000, pending: null, actionsLeft: 3 });
   g.stats = { health: 70, mind: 60, foundation: 40, insight: 40, reputation: 40, combat: 30, alchemy: 30 };
   return g;
@@ -96,8 +97,7 @@ test('[Sects] each school teaches once; leaving, selling and rejoining cannot du
     assert.equal(g.contribution, 0); assert.equal(g.inventory[s.specialty.gear.id], 1);
     assert.ok(g.flags.includes(s.specialty.id));
     for (const art of s.specialty.arts) assert.ok(hasSectArt(g, art));
-    const learned = progressionBenefits(g);
-    g = step(g, { type: 'use', id: s.specialty.gear.id });
+    const learned = progressionBenefits({ ...g, equipped: null });
     assert.equal(g.equipped, s.specialty.gear.id);
     assert.notDeepEqual(progressionBenefits(g), learned, `${s.id} gear has an effective modifier`);
     g = step(renew(g), { type: 'use', id: s.specialty.gear.id });

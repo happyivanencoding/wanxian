@@ -191,9 +191,11 @@ try {
 
     await navigate(page, 'journey');
     await page.getByTestId('focus-picker').click();
+    await page.locator('.manual-focus > summary').click();
     await snapshot(page, theme, 'focus-picker', 'journey', page.getByTestId('focus-rest'));
     await page.getByTestId('focus-rest').click();
     await waitState(page, value => value.game.focus === 'rest');
+    await page.getByTestId('cultivation-details').locator('summary').first().click();
     await page.getByTestId('preparation-methods').click();
     await snapshot(page, theme, 'preparation-methods', 'journey', page.getByTestId('prepare-temper'));
     await page.getByTestId('prepare-temper').click();

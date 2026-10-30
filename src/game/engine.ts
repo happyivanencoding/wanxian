@@ -7,6 +7,7 @@ import { mutateExpedition } from './expeditions.ts';
 import { lifeIdentity } from './world.ts';
 import { sectAnnualEffect, sectEntryReason, sectMissionEffect, sectPassive, sectStudyEffect } from './sects.ts';
 import { directCandidate, npcResponses } from './director.ts';
+import { LIFE_DIRECTIONS, arrangeLife, bindLifeEvent, getLifeEvent, nextLifeEvent, lifeAnnualEffects, lifeLegacyText, lifeTrainingMultiplier, npcLifeFactors } from './lifelines.ts';
 import type { DirectorControl } from './director.ts';
 import type { Action, ActionResult, BirthConfig, Choice, DirectedAction, DirectedPlan, DirectorDecision, Effect, EventDef, Game, LifeRecord, LogKind, NPC, Stat } from './types.ts';
 export type { DirectedAction, DirectedPlan, DirectorCandidate, DirectorRequest, DirectorDecision } from './types.ts';
@@ -45,11 +46,12 @@ export function trainingFactors(g: Game) {
     mind: 0.55 + g.stats.mind * 0.0045, health: 0.4 + g.stats.health * 0.006,
     fate: fateInfluence(g).training,
     attainments: progressionBenefits(g).training,
+    life: lifeTrainingMultiplier(g),
   };
 }
 export const trainingRate = (g: Game) => {
   const f = trainingFactors(g);
-  return round(f.base * f.realm * f.region * f.era * f.phase * f.preparation * f.mind * f.health * f.fate * f.attainments);
+  return round(f.base * f.realm * f.region * f.era * f.phase * f.preparation * f.mind * f.health * f.fate * f.attainments * f.life);
 };
 export function breakthroughFactors(g: Game, usePill = false) {
   return [
@@ -140,6 +142,7 @@ export function createGame(config: BirthConfig): Game {
     visited: [region.id], choices: 0, alive: true, ending: null, endingText: '', yearName: era.id === 'chaos' ? '赤烽历' : era.id === 'renewal' ? '灵初历' : '承平历', logSeq: 0,
   };
   g.rng = cursor.rng;
+  if (config.guided) g.direction = 'seek';
   const talentEffects: Record<string, Effect> = { 心如止水: { stats: { mind: 10 } }, 勤学不辍: { stats: { insight: 9 } }, 筋骨强健: { stats: { health: 10, foundation: 4 } }, 草木亲和: { stats: { alchemy: 12 } }, 剑心初生: { stats: { combat: 12 } } };
   gain(g, talentEffects[talent]);
   const usedNames = new Set([name]);
@@ -169,6 +172,8 @@ export function eventEligible(g: Game, e: EventDef): boolean {
 }
 export function getEvent(g: Game, id: string | null = g.pending): EventDef | undefined {
   if (!id) return;
+  const life = getLifeEvent(g, id);
+  if (life) return life;
   const story = getStoryEvent(g, id);
   if (story) return story;
   const original = EVENT_MAP[id];
@@ -191,6 +196,7 @@ export function requiresPlayerChoice(g: Game): boolean {
   return Boolean(g.expeditions?.active || (g.pending && getEvent(g)?.kind === 'turning'));
 }
 function openEvent(g: Game, id: string) {
+  bindLifeEvent(g, id);
   if (id === 'wounded-friend' && !g.flags.some(flag => flag.startsWith('wounded-person:'))) {
     const person = g.npcs.find(npc => npc.alive && npc.role !== 'rival') ?? g.npcs.find(npc => npc.alive);
     if (person) g.flags.push(`wounded-person:${person.id}`);
@@ -204,6 +210,8 @@ function selectEvent(g: Game, director?: DirectorControl) {
   const seenEntries = Object.entries(g.seen);
   const lastManual = Math.max(0, ...seenEntries.filter(([id]) => EVENT_MAP[id]?.kind !== 'routine').map(([, age]) => age));
   const lastRoutine = Math.max(0, ...seenEntries.filter(([id]) => EVENT_MAP[id]?.kind === 'routine').map(([, age]) => age));
+  const life = nextLifeEvent(g);
+  if (life && g.age - lastManual >= 6) { openEvent(g, life); return; }
   const story = nextStoryEvent(g, random(g));
   if (story && (getStoryEvent(g, story)?.kind === 'routine' || g.age - lastManual >= 6)) {
     openEvent(g, story);
@@ -268,7 +276,7 @@ function growNPCs(g: Game) {
     if (!npc.alive) continue;
     npc.age++;
     if (npc.age >= 6 && npc.realm < 6) {
-      npc.progress += (2 + npc.aptitude / 14) * [1, 1.1, 1.4, 1.8, 2.3, 2.8][npc.realm] * currentEra(g).spirit;
+      npc.progress += (2 + npc.aptitude / 14) * [1, 1.1, 1.4, 1.8, 2.3, 2.8][npc.realm] * currentEra(g).spirit * npcLifeFactors(g, npc).training;
       if (npc.progress >= REALMS[npc.realm].need && npc.age >= 16) {
         if (random(g) < 0.47 + npc.aptitude * 0.002 - npc.realm * 0.055) {
           npc.realm++; npc.progress = 0; npc.lifespan = npc.realm === 6 ? 9999 : Math.max(npc.lifespan, REALMS[npc.realm].life + integer(g, -8, 10));
@@ -278,7 +286,7 @@ function growNPCs(g: Game) {
         } else { npc.progress *= 0.65; npc.story = `${npc.age}岁突破失利，正在重新积蓄修为。`; }
       }
     }
-    if (npc.alive && (npc.age >= npc.lifespan || (npc.age >= 20 && random(g) < 0.0013 * currentEra(g).risk))) {
+    if (npc.alive && (npc.age >= npc.lifespan || (npc.age >= 20 && random(g) < 0.0013 * currentEra(g).risk * npcLifeFactors(g, npc).risk))) {
       npc.alive = false;
       npc.story = `${npc.age}岁${npc.age >= npc.lifespan ? '寿终坐化' : '在一次历练中陨落'}。`;
       log(g, '故人远去', `${npc.name}${npc.story}当初与你一同出发的人，又少了一位。`, 'relationship', true);
@@ -291,8 +299,9 @@ function growNPCs(g: Game) {
 function advanceOne(g: Game, director?: DirectorControl) {
   if (!g.alive || g.pending || g.expeditions?.active) return;
   g.age++; g.actionsLeft = 3;
+  arrangeLife(g);
   growNPCs(g);
-  if (g.age % 20 === 0) log(g, worldPhase(g).name, worldPhase(g).description, 'world', true);
+  if (g.age % 20 === 0) log(g, worldPhase(g).name, worldPhase(g).description, 'world');
   const due = g.delayed.filter(d => d.at <= g.age);
   g.delayed = g.delayed.filter(d => d.at > g.age);
   for (const delayed of due) { gain(g, delayed.effect); log(g, delayed.title, delayed.text, 'encounter', true); }
@@ -341,6 +350,7 @@ function advanceOne(g: Game, director?: DirectorControl) {
       if (g.home.garden) gain(g, { item: 'herb', amount: g.home.garden + (g.region === 'river' ? 1 : 0) + (worldPhase(g).name === '百草丰年' ? 1 : 0) });
       if (g.home.library) gain(g, { stats: { insight: g.home.library * (g.focus === 'study' ? 0.8 : 0.4) } });
       for (const effect of storyAnnualEffects(g)) gain(g, effect);
+      for (const effect of lifeAnnualEffects(g)) gain(g, effect);
       // High stats need continued attention; different choices fund or strain a way of life.
       gain(g, { stats: {
         health: -0.65 - r * 0.10 - (g.age > g.lifespan * 0.8 ? 0.8 : 0) - fate.healthDrain + learned.yearHealth,
@@ -357,6 +367,7 @@ function advanceOne(g: Game, director?: DirectorControl) {
   }
   checkLife(g);
   if (g.alive) selectEvent(g, director);
+  if (g.alive && !g.pending && g.direction && g.age >= 16 && g.actionsLeft > 0 && g.stats.health >= 65 && g.stats.mind >= 48 && (g.realm < 5 || g.flags.includes('life-gate-open')) && g.progress >= REALMS[g.realm].need && g.stones >= REALMS[g.realm].cost && g.age >= g.cooldownUntil) breakthrough(g, g.inventory.breakpill > 0);
   snapshot(g);
 }
 function breakthrough(g: Game, usePill: boolean): string | null {
@@ -407,7 +418,19 @@ function perform(g: Game, action: Action, director?: DirectorControl): string | 
   if (action.type === 'focus') {
     if (!FOCUSES.some(f => f.id === action.focus)) return '未知的修行重心';
     if (g.age < 6) return '六岁后可选择修行重心';
+    delete g.direction;
     g.focus = action.focus; return null;
+  }
+  if (action.type === 'direction') {
+    if (g.pending) return '请先处理眼前的抉择';
+    if (g.age < 6) return '六岁后可选择生活方向';
+    if (action.direction === null) delete g.direction;
+    else {
+      if (!LIFE_DIRECTIONS.some(item => item.id === action.direction)) return '未知的生活方向';
+      g.direction = action.direction;
+      arrangeLife(g);
+    }
+    return null;
   }
   if (action.type === 'choose') return resolveChoice(g, action.index);
   if (g.pending) return '请先处理眼前的抉择';
@@ -569,6 +592,7 @@ export function autoChoice(g: Game, policy: 'safe' | 'bold' | 'random'): number 
 function autoMutate(g: Game, policy: 'safe' | 'bold' | 'random', director?: DirectorControl) {
   if (!g.alive || g.expeditions?.active) return;
   if (g.pending) { if (!requiresPlayerChoice(g)) resolveChoice(g, autoChoice(g, policy)); return; }
+  if (g.direction) { advanceOne(g, director); return; }
   if (g.age < 16) { advanceOne(g, director); return; }
   const preparation = preparationState(g);
   const preparing = preparation.selected && preparation.progress[preparation.selected] < preparationTarget(g.realm, preparation.selected);
@@ -633,7 +657,7 @@ export function lifeLegacy(g: Game) {
     : g.realm >= 4 ? '你的传说，留在那些仰望仙途的人口中。'
     : '未必人人知晓，但这一生的每一步都曾真实走过。';
   const identity = lifeIdentity(g);
-  return [identity.description, storyLegacy(g) || fate, personal].filter(Boolean).join(' ');
+  return [identity.description, lifeLegacyText(g), storyLegacy(g) || fate, personal].filter(Boolean).join(' ');
 }
 export function archiveLife(g: Game, date = new Date().toISOString()): LifeRecord {
   return { id: g.id, name: g.name, age: g.age, realm: g.realm, origin: g.origin, route: g.route, ending: g.ending ?? '未结卷', endingText: g.endingText, totalStones: g.totalStones, choices: g.choices, legacy: lifeLegacy(g), logs: g.logs.filter(l => l.important || l.starred).slice(-500), date };

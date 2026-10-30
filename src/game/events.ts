@@ -1,6 +1,7 @@
 import type { Choice, Effect, EventDef, Focus, LogKind } from './types.ts';
 import { REGIONS } from './data.ts';
 import { STORY_EVENTS } from './story.ts';
+import { LIFE_EVENTS } from './lifelines.ts';
 const c = (label: string, hint: string, effect: Effect, extra: Partial<Choice> = {}): Choice => ({ label, hint, effect, autoScore: 5, ...extra });
 
 const stories: EventDef[] = [
@@ -149,6 +150,7 @@ export const EVENTS: EventDef[] = [
   ...landmarks.map(e => ({ ...e, kind: 'routine' as const })),
   ...turningPoints.map(e => ({ ...e, kind: 'turning' as const })),
   ...STORY_EVENTS,
+  ...LIFE_EVENTS,
 ];
 export const EVENT_MAP = Object.fromEntries(EVENTS.map(event => [event.id, event]));
 export const CHILD_EVENTS = new Map([[2, 'child-pebble'], [6, 'child-root'], [12, 'child-letter'], [16, 'departure'], [18, 'vow']]);

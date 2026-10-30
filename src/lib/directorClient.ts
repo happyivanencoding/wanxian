@@ -19,11 +19,12 @@ async function requestJSON(fetcher: Fetcher, url: string, init: RequestInit, tim
 function record(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value); }
 
 /** Only contacts this game's same-origin helper; a static/offline build stays fully playable. */
-export function createDirectorClient(fetcher: Fetcher = fetch, online = () => typeof navigator === 'undefined' || navigator.onLine, now = Date.now) {
+export function createDirectorClient(fetcher: Fetcher = fetch, online = () => typeof navigator === 'undefined' || navigator.onLine, now = Date.now, enabled = true) {
   let status: DirectorStatus | undefined;
   let checkAfter = 0;
   let retryAfter = 0;
   async function getStatus(force = false): Promise<DirectorStatus> {
+    if (!enabled) return { configured: false, reachable: true };
     if (!online()) return { configured: false, reachable: false };
     if (!force && status && now() < checkAfter) return status;
     try {

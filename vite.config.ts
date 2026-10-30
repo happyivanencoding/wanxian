@@ -4,7 +4,7 @@ import { createDirectorMiddleware, readDirectorKey } from './server/director.ts'
 export default defineConfig(({ mode }) => {
   const root = process.cwd();
   const env = loadEnv(mode, root, 'STARTLUX_');
-  const apiKey = readDirectorKey({
+  const apiKey = mode === 'pages' ? '' : readDirectorKey({
     STARTLUX_API_KEY: process.env.STARTLUX_API_KEY ?? env.STARTLUX_API_KEY,
     STARTLUX_KEY_FILE: process.env.STARTLUX_KEY_FILE ?? env.STARTLUX_KEY_FILE,
   }, root);
@@ -13,5 +13,5 @@ export default defineConfig(({ mode }) => {
     configureServer(server) { server.middlewares.use(createDirectorMiddleware({ apiKey })); },
     configurePreviewServer(server) { server.middlewares.use(createDirectorMiddleware({ apiKey })); },
   };
-  return { plugins: [plugin] };
+  return { plugins: [plugin], base: mode === 'pages' ? '/wanxian/' : '/', define: { __STATIC_HOSTING__: JSON.stringify(mode === 'pages') } };
 });

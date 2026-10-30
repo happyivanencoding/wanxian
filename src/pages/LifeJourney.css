@@ -1,0 +1,78 @@
+.life-journey { max-width: 1160px; margin-inline: auto; }
+.life-landscape { height: 116px; position: relative; overflow: hidden; border: 1px solid var(--pixel-border); margin-bottom: 16px; }
+.life-landscape .pixel-scene { height: 100%; min-height: 0; }
+.life-landscape > div:last-child { position: absolute; inset: auto 0 0; display: flex; justify-content: space-between; gap: 12px; padding: 10px 14px; font-size: 12px; background: #061722c9; color: #edf5ef; }
+.life-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 28px; align-items: start; }
+.life-current, .life-aside { min-width: 0; }
+.life-direction-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.life-direction-bar .current-focus { flex: 1; min-width: 0; min-height: 48px; display: flex; align-items: center; gap: 10px; padding: 7px 10px; border: 1px solid var(--pixel-border); background: var(--pixel-panel); color: var(--ink); text-align: left; }
+.life-direction-bar .current-focus > span { display: grid; gap: 2px; flex: 1; }
+.life-direction-bar .current-focus small { font-size: 10px; color: var(--muted); }
+.life-direction-bar .current-focus strong { font-size: 14px; }
+.life-direction-bar .life-breakthrough { min-height: 48px; font-size: 12px; padding: 8px 12px; }
+.life-current .pending-banner { width: 100%; display: flex; align-items: center; gap: 10px; margin-bottom: 14px; padding: 12px; text-align: left; }
+.life-current .pending-banner > span { flex: 1; display: grid; gap: 3px; }
+.life-now { padding: 5px 0 20px; }
+.life-now-meta { display: flex; align-items: center; justify-content: space-between; color: var(--pixel-gold); font-size: 11px; }
+.life-now-meta button { min-width: 44px; min-height: 44px; font-size: 19px; }
+.life-now h1 { margin: 0 0 10px; font-size: 23px; line-height: 1.4; }
+.life-now > p { margin: 0; font-size: 14px; line-height: 1.85; color: var(--ink); overflow-wrap: anywhere; }
+.life-section-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 7px; }
+.life-section-title h2 { margin: 0; font-size: 13px; color: var(--muted); font-weight: 500; }
+.life-section-title .text-button { min-height: 40px; font-size: 12px; }
+.life-people { padding: 4px 0 18px; }
+.life-people-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.life-people-row button { position: relative; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 10px 2px; min-height: 104px; background: transparent; border: 1px solid transparent; color: var(--ink); }
+.life-people-row button:hover { background: var(--pixel-panel); border-color: var(--pixel-border); }
+.life-people-row .pixel-portrait { width: 44px; height: 44px; }
+.life-people-row strong { font-size: 12px; font-weight: 500; }
+.life-people-row small { font-size: 10px; color: var(--muted); }
+.life-people-row .person-departed .pixel-portrait { filter: grayscale(1); opacity: .65; }
+.person-memory-mark { width: 4px; height: 4px; background: var(--pixel-jade); position: absolute; top: 10px; right: 18%; }
+.life-recent { padding-top: 4px; }
+.life-recent .log-row { font-size: 12px; }
+.life-aside .opportunity-preview { margin-bottom: 12px; }
+.life-practice { padding: 0; overflow: visible; }
+.life-practice > summary { display: flex; align-items: center; justify-content: space-between; padding: 14px; min-height: 48px; font-size: 13px; cursor: pointer; }
+.life-practice-body { padding: 0 14px 14px; }
+.life-practice-status { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; margin-block: 10px; }
+.life-practice progress { width: 100%; height: 6px; accent-color: var(--pixel-jade); }
+.life-practice .preparation-panel { box-shadow: none; padding-inline: 0; }
+.life-practice .quiet { font-size: 11px; }
+.life-practice-links { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-block: 12px; }
+.life-practice-links .button { min-height: 44px; padding: 8px 4px; font-size: 12px; }
+.life-details-link { min-height: 44px; margin-top: 8px; font-size: 12px; }
+.life-direction-options { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.life-direction-options .focus-picker-option { display: flex; gap: 10px; align-items: center; min-height: 78px; padding: 12px; }
+.life-direction-options .focus-picker-option span { display: grid; gap: 5px; }
+.life-direction-options .focus-picker-option strong { font-size: 14px; }
+.life-direction-options .focus-picker-option small { font-size: 11px; line-height: 1.5; color: var(--muted); }
+.manual-focus > summary, .birth-advanced > summary { min-height: 44px; padding-block: 12px; cursor: pointer; color: var(--muted); font-size: 12px; }
+.manual-focus .focus-picker-grid { margin-top: 8px; }
+.simple-birth { display: grid; gap: 16px; }
+.simple-birth .birth-advanced { margin: 0; border-top: 1px solid var(--pixel-border); }
+.birth-advanced-body { display: grid; gap: 14px; padding-top: 10px; }
+.life-landing .pixel-title-menu { display: flex; flex-direction: column; justify-content: center; gap: 12px; }
+.life-landing .pixel-local-caption { font-size: 11px; }
+@media (max-width: 900px) {
+  .life-layout { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .life-aside { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .life-aside .opportunity-preview { margin: 0; align-self: start; }
+  .life-aside .life-details-link { grid-column: 1 / -1; margin: 0; }
+}
+@media (max-width: 600px) {
+  .life-landscape { height: 64px; margin-bottom: 10px; }
+  .life-landscape > div:last-child { padding: 6px 10px; font-size: 10px; }
+  .life-direction-bar { gap: 8px; margin-bottom: 6px; }
+  .life-now { padding-bottom: 10px; }
+  .life-now-meta { font-size: 10px; }
+  .life-now h1 { font-size: 18px; margin-bottom: 7px; }
+  .life-now > p { font-size: 13px; line-height: 1.8; }
+  .life-people { padding-bottom: 8px; }
+  .life-people-row button { min-height: 90px; padding: 5px 0; }
+  .life-people-row .pixel-portrait { width: 36px; height: 36px; }
+  .life-aside { grid-template-columns: 1fr; }
+  .life-layout { gap: 14px; }
+  .life-direction-options .focus-picker-option { padding: 10px 8px; }
+  .life-landing .pixel-title-menu { padding: 22px 18px; }
+}

@@ -23,6 +23,7 @@ const validLog = (l: unknown) => object(l) && number(l.id) && number(l.age, 0, 1
 export function validGame(value: unknown): value is Game {
   if (!object(value) || value.version !== 1) return false;
   const g = value;
+  if (g.direction !== undefined && !['seek', 'roam', 'belong', 'peace'].includes(g.direction as string)) return false;
   if (!['id', 'name', 'gender', 'root', 'talent', 'endingText', 'yearName'].every(k => text(g[k]))) return false;
   if (!['seed', 'rng'].every(k => number(g[k], 0, 4294967295) && Number.isInteger(g[k]))) return false;
   if (!number(g.age, 0, 10000) || !Number.isInteger(g.age) || !number(g.realm, 0, 6) || !Number.isInteger(g.realm)) return false;

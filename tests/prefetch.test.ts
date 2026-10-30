@@ -1,8 +1,9 @@
 import test from 'node:test';
+import { LIFE_EVENTS } from '../src/game/lifelines.ts';
 import assert from 'node:assert/strict';
 import { act, commitDirectedAction, createGame, planDirectedAction } from '../src/game/engine.ts';
 import { createDirectorPrefetch } from '../src/lib/directorPrefetch.ts';
-import type { DirectorReply } from '../src/lib/directorClient.ts';
+import { createDirectorClient, type DirectorReply } from '../src/lib/directorClient.ts';
 import type { DirectorDecision, DirectorRequest, Game } from '../src/game/types.ts';
 
 const request: DirectorRequest = {
@@ -27,6 +28,7 @@ function nextYearFixture(): Game {
   const g = createGame({ name: '预取边界', gender: '随缘', origin: 'merchant', era: 'peace', route: 'balanced', region: 'qinglan', mode: 'seeker', fastStart: true, seed: 'prefetch-browser' });
   g.age = 40; g.realm = 2; g.progress = 50; g.lifespan = 260; g.stones = 160; g.focus = 'adventure'; g.pending = null;
   g.seen['story-call-guardian'] = 20;
+  for (const event of LIFE_EVENTS) g.seen[event.id] = 20;
   g.stats = { health: 70, mind: 60, insight: 55, foundation: 55, alchemy: 30, combat: 40, reputation: 35 };
   for (const npc of g.npcs) { npc.age = 40; npc.realm = 2; npc.lifespan = 260; npc.relation = 65; npc.progress = 0; }
   g.rng = 65537;
@@ -134,4 +136,13 @@ test('offline results and rejected background requests stay quiet and immediatel
     assert.equal(client.calls.length, 1, 'Renders should not retry the same failed prefetch.');
     assert.equal(prefetch.take(g, 'talk'), undefined);
   }
+});
+
+
+test('a static deployment never contacts an absent director backend', async () => {
+  let calls = 0;
+  const client = createDirectorClient(async () => { calls++; throw new Error('No backend'); }, () => true, Date.now, false);
+  assert.deepEqual(await client.getStatus(true), { configured: false, reachable: true });
+  assert.equal((await client.decide(request, new AbortController().signal)).source, 'local');
+  assert.equal(calls, 0);
 });

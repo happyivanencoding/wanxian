@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { LIFE_EVENTS } from '../src/game/lifelines.ts';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from 'playwright';
@@ -99,18 +100,29 @@ async function assertGlobalStatus(p, label) {
     assert.ok(await ribbon.locator('.status-name strong').isVisible());
   }
 }
+async function openPractice(p) {
+  const details = p.getByTestId('cultivation-details');
+  if (!(await details.getAttribute('open')) && !(await details.evaluate(node => node.open))) await details.locator('summary').first().click();
+}
+async function manualBirth(p) {
+  await p.getByTestId('birth-advanced').locator('summary').click();
+  await p.getByTestId('fast-start').check();
+  await p.getByTestId('guided-start').uncheck();
+}
 async function assertCoreVisible(p, label) {
-  // Measure final hit boxes after the page's entry translation has settled.
-  // During animation Chromium can report 43.99997 for a 44px button.
   await p.locator('.page-enter').evaluate(node => Promise.all(node.getAnimations().map(animation => animation.finished)));
+  await p.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
   const boundary = await p.locator('.time-dock').boundingBox();
-  for (const id of ['current-cultivation', 'focus-picker', 'breakthrough-open', 'opportunity-preview', 'preparation-methods']) {
+  for (const id of ['current-cultivation', 'focus-picker', 'breakthrough-open']) {
     const box = await p.getByTestId(id).boundingBox();
-    assert.ok(box && box.y >= 0 && box.x >= -1 && box.y + box.height <= boundary.y + 1, `${label}: ${id} is not entirely usable in the first screen: ${JSON.stringify(box)}`);
+    assert.ok(box && box.y >= 0 && box.x >= -1 && box.y + box.height <= boundary.y + 1, `${label}: ${id} must remain in the first screen: ${JSON.stringify(box)}`);
   }
-  assert.equal(await p.getByTestId('story-panel').count(), 0, 'The cultivation homepage must not bury its core controls under the full life story.');
+  const moment = await p.getByTestId('life-now').locator('h1').boundingBox();
+  assert.ok(moment && moment.y + moment.height < boundary.y, `${label}: the current life moment should be visible before any management tools.`);
+  assert.equal(await p.getByTestId('life-person-peer-0').count(), 1);
+  assert.equal(await p.getByTestId('story-panel').count(), 0);
   const focusSize = await p.getByTestId('focus-picker').locator('strong').evaluate(node => parseFloat(getComputedStyle(node).fontSize));
-  assert.ok(focusSize >= 14, `${label}: the main action text must not be shrunk to fit.`);
+  assert.ok(focusSize >= 14, `${label}: the main action text must remain readable.`);
 }
 async function capture(p, name, fullPage = false) { await p.screenshot({ path: path.join(output, `${name}.png`), fullPage, animations: 'disabled' }); }
 function fixture() {
@@ -125,6 +137,7 @@ function directedYearFixture() {
   const game = createGame({ ...config, name: '预取边界', gender: '随缘', seed: 'prefetch-browser' });
   Object.assign(game, { age: 40, realm: 2, progress: 50, lifespan: 260, stones: 160, focus: 'adventure', pending: null, rng: 65537 });
   game.seen['story-call-guardian'] = 20;
+  for (const event of LIFE_EVENTS) game.seen[event.id] = 20;
   game.stats = { health: 70, mind: 60, insight: 55, foundation: 55, alchemy: 30, combat: 40, reputation: 35 };
   game.npcs.forEach(n => Object.assign(n, { age: 40, realm: 2, lifespan: 260, relation: 65, progress: 0 }));
   assert.equal(planDirectedAction(game, { type: 'advance' }).request?.kind, 'event');
@@ -135,6 +148,7 @@ async function primeNPC(p, id) {
   const received = p.waitForResponse(reply => reply.url().endsWith('/api/director/decide') && reply.request().postDataJSON().actorId === id);
   await p.getByTestId(`talk-${id}`).focus();
   const reply = await received; await reply.finished();
+  // Finish through the same keyboard intent: moving the pointer across other cards legitimately replaces a single-action prefetch.
   // Let the client's JSON promise publish its ready value; no game action has occurred.
   await p.waitForTimeout(40);
   return reply.json();
@@ -173,7 +187,8 @@ async function completeSpringThroughUI(p, label) {
   assert.equal((await state(p)).game.stones, scenario.game.stones - 18);
   assert.ok(await p.getByTestId('expedition-choice-map').isEnabled());
   const font = await p.getByTestId('expedition-scene').evaluate(node => parseFloat(getComputedStyle(node).fontSize));
-  assert.ok(font >= 16, `${label}: story prose must remain readable.`);
+  const minimumFont = p.viewportSize().width <= 600 ? 12 : 16;
+  assert.ok(font >= minimumFont, `${label}: story prose must respect the chosen compact typography (${font}px).`);
   await p.getByTestId('expedition-choice-map').click();
   await waitState(p, s => s.game.expeditions?.active?.stage === 1);
   assert.match(await p.getByTestId('expedition-scene').innerText(), /排水道/);
@@ -228,10 +243,10 @@ try {
   await check('Create a character through the real birth form and resolve the opening choice', async () => {
     await page.getByTestId('start-life').click();
     await page.getByTestId('birth-name').fill(config.name);
+    await manualBirth(page);
     await page.getByTestId('birth-origin').selectOption(config.origin);
     await page.getByTestId('birth-region').selectOption(config.region);
     await page.getByTestId('birth-duration').selectOption('60');
-    await page.locator('.seed-details summary').click();
     await page.getByTestId('birth-seed').fill(config.seed);
     await page.getByTestId('create-life').click();
     await page.getByTestId('event-choice-0').waitFor();
@@ -289,7 +304,7 @@ try {
     await choosePending(page); await navigate(page, 'journey');
     await page.getByTestId('speed-select').selectOption('1');
     await choosePending(page);
-    await page.getByTestId('focus-picker').click(); await page.getByTestId('focus-study').click();
+    await page.getByTestId('focus-picker').click(); await page.locator('.manual-focus > summary').click(); await page.getByTestId('focus-study').click();
     const before = (await state(page)).game;
     await waitForNextYear(page);
     const after = (await waitState(page, s => s.game.age === before.age + 1)).game;
@@ -413,7 +428,7 @@ try {
   });
   await check('Preparation is selected once, follows the chosen annual focus and keeps progress when paused or switched', async () => {
     await install(page);
-    await page.getByTestId('preparation-methods').click();
+    await openPractice(page); await page.getByTestId('preparation-methods').click();
     await page.getByTestId('prepare-meditate').click();
     await waitState(page, s => s.game.preparation?.selected === 'meditate');
     await page.getByTestId('preparation-focus').click();
@@ -423,11 +438,11 @@ try {
     await choosePending(page);
     if ((await page.getByTestId('play-toggle').innerText()).includes('暂停')) await page.getByTestId('play-toggle').click();
     const progress = (await state(page)).game.preparation.progress.meditate;
-    await page.getByTestId('preparation-methods').click();
+    await openPractice(page); await page.getByTestId('preparation-methods').click();
     await page.getByTestId('prepare-temper').click();
     await waitState(page, s => s.game.preparation?.selected === 'temper');
     assert.equal((await state(page)).game.preparation.progress.meditate, progress);
-    await page.getByTestId('preparation-methods').click();
+    await openPractice(page); await page.getByTestId('preparation-methods').click();
     await page.getByTestId('prepare-cancel').click(); await waitState(page, s => s.game.preparation?.selected === null);
     assert.equal((await state(page)).game.preparation.progress.meditate, progress);
   });
@@ -532,6 +547,7 @@ try {
   });
   await check('Training explanation uses real state and changing pages pauses the running clock', async () => {
     await install(page);
+    await openPractice(page);
     await page.getByTestId('training-insight').locator('summary').click();
     const explanation = await page.getByTestId('training-insight').innerText();
     assert.match(explanation, /洞府、道路与宗门/);
@@ -602,12 +618,12 @@ try {
     await route.fulfill({ json: { source: 'startlux', decision: { kind: request.kind, age: request.age, actorId: request.actorId, candidateId, source: 'startlux' } } }).catch(() => {});
   });
   const dp = await directed.newPage(); watch(dp); await dp.goto(baseURL);
-  await check('A ready background NPC response is applied once without changing the game before the click', async () => {
+  await check('A ready keyboard-focused NPC response is applied once without changing the game before activation', async () => {
     const scenario = fixture();
     await install(dp, scenario); await navigate(dp, 'people');
     await primeNPC(dp, 'peer-1');
     assert.deepEqual((await state(dp)).game, scenario.game, 'Preparing a response cannot spend resources or commit fictional events.');
-    await dp.getByTestId('talk-peer-1').click();
+    await dp.getByTestId('talk-peer-1').press('Enter');
     const after = (await waitState(dp, p => p.game.directorRecords?.at(-1)?.source === 'startlux')).game;
     assert.equal(after.directorRecords.at(-1).candidateId, 'medicine');
     assert.equal(after.inventory.herb, scenario.game.inventory.herb + 1);
@@ -619,7 +635,7 @@ try {
   await check('Invalid online decisions and a disconnected browser both complete through local rules', async () => {
     directorMode = 'invalid';
     const scenario = fixture(), expected = act(scenario.game, { type: 'npc', id: 'peer-1', interaction: 'talk' }).game;
-    await install(dp, scenario); await navigate(dp, 'people'); await primeNPC(dp, 'peer-1'); await dp.getByTestId('talk-peer-1').click();
+    await install(dp, scenario); await navigate(dp, 'people'); await primeNPC(dp, 'peer-1'); await dp.getByTestId('talk-peer-1').press('Enter');
     await waitState(dp, p => p.game.npcs[1].lastInteraction === scenario.game.age);
     assert.deepEqual((await state(dp)).game, expected);
     await install(dp, scenario); await navigate(dp, 'people');
@@ -692,7 +708,7 @@ try {
       assert.equal(prepared.source, 'startlux');
       assert.deepEqual((await state(lp)).game, scenario.game);
       const clicked = performance.now();
-      await lp.getByTestId('talk-peer-1').click();
+      await lp.getByTestId('talk-peer-1').press('Enter');
       await lp.waitForFunction(key => JSON.parse(localStorage.getItem(key)).game.directorRecords?.length > 0, SAVE_KEY, { timeout: 6500 });
       const after = (await state(lp)).game;
       assert.equal(after.directorRecords.at(-1).source, 'startlux');
@@ -711,18 +727,19 @@ try {
       await noOverflow(p, 'mobile landing');
       if (width === 390) await capture(p, '08-mobile-landing', true);
       await p.getByTestId('start-life').click(); await noOverflow(p, 'mobile birth');
-      await p.getByTestId('birth-name').fill('沈见山'); await p.getByTestId('birth-region').selectOption('qinglan'); await p.getByTestId('create-life').click();
+      await p.getByTestId('birth-name').fill('沈见山'); await manualBirth(p); await p.getByTestId('birth-region').selectOption('qinglan'); await p.getByTestId('create-life').click();
       await p.getByTestId('event-choice-0').waitFor(); await choosePending(p);
     });
-    await check(`Mobile ${width}px cultivation controls fit the first screen with comfortable touch targets`, async () => {
+    await check(`Mobile ${width}px life controls fit the first screen and advanced tools retain comfortable touch targets`, async () => {
       await assertCoreVisible(p, `mobile ${width} fresh life`);
+      await openPractice(p);
       for (const id of ['focus-picker', 'breakthrough-open', 'opportunity-preview', 'preparation-methods', 'mobile-nav-journey', 'mobile-nav-opportunities', 'mobile-nav-management', 'mobile-nav-life']) {
         const box = await p.getByTestId(id).boundingBox();
         assert.ok(box.height >= 44 && box.width >= 44, `mobile ${width}: ${id} is too small for a primary touch target: ${JSON.stringify(box)}`);
       }
-      await p.getByTestId('focus-picker').click(); await p.getByTestId('focus-study').click();
+      await p.getByTestId('focus-picker').click(); await p.locator('.manual-focus > summary').click(); await p.getByTestId('focus-study').click();
       await waitState(p, s => s.game.focus === 'study');
-      await p.getByTestId('preparation-methods').click();
+      await openPractice(p); await p.getByTestId('preparation-methods').click();
       await p.getByTestId('prepare-meditate').click();
       await waitState(p, s => s.game.preparation?.selected === 'meditate');
       assert.ok((await p.getByTestId('preparation-current').innerText()).length > 10);

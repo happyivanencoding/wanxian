@@ -30,7 +30,7 @@ export function PixelSprite({ name, className = '', size = 40 }: { name: PixelSp
 
 /** Shared landscape art. Its height follows the caller's container. */
 export function PixelScene({ className = '', region = 'qinglan', compact = false }: { className?: string; region?: string; compact?: boolean }) {
-  return <div className={`pixel-scene pixel-scene-${region} ${compact ? 'pixel-scene-compact' : ''} ${className}`} aria-hidden="true"><img src="/art/pixel-scene.png" alt="" draggable={false}/></div>;
+  return <div className={`pixel-scene pixel-scene-${region} ${compact ? 'pixel-scene-compact' : ''} ${className}`} aria-hidden="true"><img src={`${import.meta.env.BASE_URL}art/pixel-scene.png`} alt="" draggable={false}/></div>;
 }
 
 /** Eight portraits share a fixed four-column, two-row local atlas. */

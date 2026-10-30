@@ -2,9 +2,10 @@ import type { DirectorRecord } from '../game/types.ts';
 import type { DirectorStatus } from '../lib/directorClient.ts';
 import './DirectorSettings.css';
 
-export default function DirectorSettings({ enabled, status, last, onChange, onRefresh }: {
-  enabled: boolean; status: DirectorStatus; last?: DirectorRecord; onChange: (enabled: boolean) => void; onRefresh: () => void;
+export default function DirectorSettings({ enabled, status, last, onChange, onRefresh, available = true }: {
+  available?: boolean; enabled: boolean; status: DirectorStatus; last?: DirectorRecord; onChange: (enabled: boolean) => void; onRefresh: () => void;
 }) {
+  if (!available) return <section className="director-settings"><p data-testid="director-status">本地概率模拟 · 无需联网模型</p></section>;
   const label = !enabled ? '本地规则 · 已关闭联网安排' : !status.reachable ? '本地规则 · 当前未连接' : !status.configured ? '本地规则 · 服务尚未配置' : 'StartLux 已配置 · 需要时联网安排';
   return <section className="director-settings" aria-label="机缘与同道安排">
     <label className="check-label"><input type="checkbox" checked={enabled} onChange={event => onChange(event.target.checked)} data-testid="director-enabled"/><span>联网机缘安排<small>StartLux · 根据经历和关系选择回应</small></span></label>

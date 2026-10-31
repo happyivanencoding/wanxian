@@ -158,6 +158,25 @@ try {
       assert.doesNotMatch(after.logs.at(-1).text, /修为 \+10.*修为 \+10/s);
       assert.ok(await page.locator('.life-now .log-change.gain').count() > 0);
     });
+    await check('Story choices reveal stone prices, precise shortfalls and recurring upkeep', async () => {
+      const p = fixture();
+      p.game.pending = 'region-qinglan-dispute';
+      p.game.stones = 11;
+      await install(page, p);
+      const option = page.getByTestId('event-choice-2');
+      assert.match(await option.innerText(), /需要 12 灵石，现有 11，还差 1/);
+      assert.equal(await option.isDisabled(), true);
+      p.game.stones = 40;
+      await install(page, p);
+      await page.reload();
+      assert.match(await page.getByTestId('event-choice-2').innerText(), /消耗 12 灵石/);
+      assert.doesNotMatch(await page.getByTestId('event-choice-2').innerText(), /道心\s*\+\s*5/);
+      const story = fixture();
+      story.game.pending = 'story-call-guardian';
+      await install(page, story);
+      await page.reload();
+      assert.match(await page.getByTestId('event-choice-0').innerText(), /此后每年供养 8 灵石/);
+    });
     await check('One action drawer exposes all tools without replacing the main life scene', async () => {
       await install(page); await page.evaluate(() => { window.lifeScene = document.querySelector('[data-testid="cultivation-home"]'); });
       await page.getByTestId('open-actions').click();

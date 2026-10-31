@@ -485,6 +485,10 @@ summary { cursor: pointer; min-height: 44px; padding-block: 11px; font-size: 14p
 .app-shell .event-choice strong, .app-shell.in-game .event-choice strong { font-size: 15px; line-height: 1.6; }
 .app-shell .event-choice small, .app-shell.in-game .event-choice small { font-size: 14px; line-height: 1.7; }
 .app-shell .event-choice em, .app-shell.in-game .event-choice em { font-size: 12px; }
+.app-shell.in-game .event-choice .choice-mechanics { color: var(--gold); font-weight: 500; }
+.app-shell.in-game .event-choice:disabled { opacity: 0.8; }
+.app-shell.in-game .event-choice:disabled strong { color: var(--muted); }
+.app-shell.in-game .event-choice:disabled em { color: var(--gold); }
 .app-shell .event-footnote { font-size: 12px; line-height: 1.7; margin-top: 16px; }
 .app-shell .breakthrough-summary { padding: 0 0 16px; }
 .app-shell .breakthrough-seal { width: 64px; height: 64px; border-radius: 2px; background: var(--pixel-panel-inset); box-shadow: inset 0 0 0 3px var(--pixel-panel), inset 0 0 0 4px #a88e55; margin-bottom: 16px; }

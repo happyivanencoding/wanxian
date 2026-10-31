@@ -31,11 +31,13 @@ export default function Opportunities({ game, act }: PageProps) {
       <div className="expedition-choices">{active.choices.map(choice => {
         const risk = /陨落|极险|重伤/.test(choice.hint) ? '有生命危险'
           : /受伤|危险|失手/.test(choice.hint) ? '可能受伤' : null;
+        const stones = choice.hint.match(/灵石\s*[−-]\s*(\d+)/)?.[1];
+        const annual = choice.hint.match(/(?:每年|额外)供养\s*(\d+)\s*灵石/)?.[1];
         return <button className="event-choice" key={choice.id} disabled={Boolean(choice.disabled)}
           onClick={() => act({ type: 'expedition-choose', id: choice.id })}
           data-testid={`expedition-choice-${choice.id}`}>
-          <span><strong>{choice.label}</strong>{risk && <small className="choice-risk">{risk}</small>}
-            {choice.disabled && <em>{choice.disabled.includes('灵石') || choice.disabled.includes('灵草') ? '资用不足' : '目前无法采取'}</em>}</span>
+          <span><strong>{choice.label}</strong>{stones && !choice.disabled?.includes('灵石') && <small className="choice-mechanics">消耗 {stones} 灵石</small>}{annual && <small className="choice-mechanics">此后每年额外供养 {annual} 灵石</small>}{risk && <small className="choice-risk">{risk}</small>}
+            {choice.disabled && <em>{choice.disabled}</em>}</span>
           <Icon name="chevron" size={18}/>
         </button>;
       })}</div>

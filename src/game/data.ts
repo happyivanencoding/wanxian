@@ -4,11 +4,11 @@ export { SECTS } from './sects.ts';
 
 export const REALMS = [
   { name: '凡人', short: '凡', life: 85, need: 48, cost: 12, description: '听见山外的风，尚不知长生为何物。' },
-  { name: '炼气', short: '气', life: 120, need: 140, cost: 80, description: '引天地灵气入体，始见修行门径。' },
-  { name: '筑基', short: '基', life: 260, need: 340, cost: 260, description: '道基初成，方知山外有山。' },
-  { name: '金丹', short: '丹', life: 560, need: 680, cost: 700, description: '一粒金丹凝就，从此世事如烟。' },
-  { name: '元婴', short: '婴', life: 1120, need: 1160, cost: 1600, description: '神游万里，旧时故人渐成往事。' },
-  { name: '化神', short: '神', life: 2240, need: 2000, cost: 3600, description: '借一缕天地之息，问大道可有尽头。' },
+  { name: '炼气', short: '气', life: 120, need: 170, cost: 80, description: '引天地灵气入体，始见修行门径。' },
+  { name: '筑基', short: '基', life: 260, need: 480, cost: 260, description: '道基初成，方知山外有山。' },
+  { name: '金丹', short: '丹', life: 560, need: 1200, cost: 700, description: '一粒金丹凝就，从此世事如烟。' },
+  { name: '元婴', short: '婴', life: 1120, need: 2850, cost: 1600, description: '神游万里，旧时故人渐成往事。' },
+  { name: '化神', short: '神', life: 2240, need: 6500, cost: 3600, description: '借一缕天地之息，问大道可有尽头。' },
   { name: '飞升', short: '仙', life: 9999, need: 1, cost: 0, description: '山河仍在，已是人间旧客。' },
 ];
 export const ORIGINS = [

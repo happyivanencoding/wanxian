@@ -39,7 +39,7 @@ const art = (g: Game, id: 'qinglan' | 'herb' | 'star') => hasSectArt(g, { qingla
 const guided = (a: Active) => marked(a, 'guide') || marked(a, 'pathcraft');
 const readLedger = (a: Active) => marked(a, 'ledger') || marked(a, 'ledger-study');
 const bearsImpact = (g: Game, a: Active) => marked(a, 'guard') || art(g, 'qinglan') || hasSectArt(g, 'body');
-const money = (g: Game, cost: number) => g.stones < cost ? `需要 ${cost} 灵石` : undefined;
+const money = (g: Game, cost: number) => g.stones < cost ? `需要 ${cost} 灵石，现有 ${g.stones}，还差 ${cost - g.stones}` : undefined;
 const herbs = (g: Game, count: number) => (g.inventory.herb ?? 0) < count ? `需要 ${count} 株灵草` : undefined;
 const choice = (id: string, label: string, hint: string, disabled?: string): ExpeditionChoice => ({ id, label, hint, ...(disabled ? { disabled } : {}) });
 

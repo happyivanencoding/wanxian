@@ -88,7 +88,7 @@ export const SECTS: SectDefinition[] = [
     culture: '守夜观测冰原星轨，把周天变化记入可以互相复核的图谱。', preferences: ['观测', '守夜', '周天', '论证'],
     description: '观星知运，参悟天地。每一张星图都来自漫长守夜。', bonus: '悟性 +1 / 年 · 突破 +6%', allowance: 6, annual: { stats: { insight: 1 } }, passive: { breakthrough: 0.06 },
     mission: mission('巡护星台', '运送守夜物资，护送观测者穿过冰原。'),
-    specialty: specialty('star', '观象诀', 140, '突破成功率增加4个百分点；可辨识阵势。另得问星法印，突破仍受90%上限约束。', { breakthrough: 0.04 }, ['formation'], gear('sect-seal', '问星法印', '星', '装备后突破成功率 +3.5 个百分点，仍受90%上限约束。', { breakthrough: 0.035 }, 2, 200)),
+    specialty: specialty('star', '观象诀', 140, '突破成功率增加4个百分点；可辨识阵势。另得问星法印。', { breakthrough: 0.04 }, ['formation'], gear('sect-seal', '问星法印', '星', '装备后突破成功率 +3.5 个百分点。', { breakthrough: 0.035 }, 2, 200)),
   },
   {
     id: 'northforge', home: 'north', name: '北炉会', mark: '炉', style: '共炉炼骨', minRealm: 1, reputation: 5, entryCost: 35,

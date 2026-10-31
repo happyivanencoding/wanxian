@@ -115,7 +115,7 @@ export function getLifeEvent(g: Game, id: string): EventDef | undefined {
       return result(road.alive
         ? `${road.name}带着满是补丁的旧地图回来。${beginning}已过去许多年。对方如今更想找一处渡口安顿，并不觉得一直远行才算没有辜负年轻时的自己。`
         : `${road.name}${depart(road)}。一张旧地图辗转到你手里，末页画着一处想要安顿的渡口。你想起${beginning}，却无法再问对方后来怎么想。`, [
-        choice(road.alive ? '帮对方把渡口的屋子修好' : '替旧图中的渡口修一间歇脚屋', `灵石 −${cost}；每年供养 2 灵石`, { flag: 'life-road-lodge', ...relation(road, 7) }, `渡口多了一处可以歇脚的地方。门边挂着${road.name}画过的河道图，上面添了几处新的地名。`, { cost }),
+        choice(road.alive ? '帮对方把渡口的屋子修好' : '替旧图中的渡口修一间歇脚屋', `灵石 −${cost}；每年供养 2 灵石`, { flag: 'life-road-lodge', ...relation(road, 7) }, `渡口多了一处可以歇脚的地方。门边挂着${road.name}画过的河道图，上面添了几处新的地名。`, { cost, annualCost: 2 }),
         choice(road.alive ? '听完这些年的故事，再各自启程' : '把地图收进自己的行囊', '', { flag: 'life-road-keepsake', ...relation(road, 4) }, `你保存了${road.name}的旧地图，没有接下渡口的事务。那段路仍属于各自的人生。`),
       ], `${g.seen['life-road']}岁，渡口的那次选择。`);
     }
@@ -163,8 +163,8 @@ export function getLifeEvent(g: Game, id: string): EventDef | undefined {
       const actor = g.npcs.find(npc => npc.id === actorId) ?? road;
       if (!actor) return;
       return result(actor.alive ? `${actor.name}约你在旧茶亭坐一坐。没有求助，也没有新传承。恰好这几日你有所领悟，出关会让这段推演暂时中断。` : `${actor.name}${depart(actor)}。当年相约的茶亭还在，这次你只能独自赴约。`, [
-        choice('放下推演，去坐一会儿', '修为 −18', { progress: -18, flag: 'life-visit-went', ...relation(actor, 9) }, `${actor.alive ? `你与${actor.name}` : `你带着${actor.name}的旧信`}在茶亭坐到天色暗下来。壶里的茶凉过两次，离开时茶亭已经点了灯。`),
-        choice('这一次不去，把缘由写清楚', '', { flag: 'life-visit-missed' }, `你写明了自己的决定，没有把没能相见说成命运的安排。${actor.alive ? `${actor.name}如何理解，还要留给之后的相处。` : '这封信已经没有收信人。'}`),
+        choice(actor.alive ? '放下推演，去坐一会儿' : '带着旧信，独自去茶亭看看', '修为 −18', { progress: -18, flag: 'life-visit-went', ...relation(actor, 9) }, actor.alive ? `你与${actor.name}在茶亭坐到天色暗下来，壶里的茶凉过两次。` : `你带着${actor.name}的旧信在茶亭坐到天色暗下来。没有人应约，但你记得那年的交谈。`),
+        choice(actor.alive ? '这一次不去，把缘由写清楚' : '不去茶亭，把旧信收好', '', { flag: 'life-visit-missed' }, actor.alive ? `你写明缘由寄给${actor.name}。对方如何理解，还要留给之后的相处。` : '你把旧信收入书箱，没有写一封无人能收的回信。'),
       ]);
     }
     case 'life-farewell': {

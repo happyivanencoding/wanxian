@@ -38,6 +38,72 @@ const scenes: Record<string, SectScene> = {
   jadeforge: { mentor: '让你辨一块有裂纹的玉', arrival: '琢玉山庄收到玉京的贵客订单，师兄发现玉料有裂纹，管事却说不能误了交期。', errand: '一件定脉冠在使用时碎了。制器的人说玉料不好，采玉的师傅说炉火过急。', argument: '山庄打算只为世家炼器，几个外门弟子觉得散修更需要能保命的法宝。', later: '那一批玉冠后来被重新检查，有的收回重炼，有的成了山庄最普通的货品。', duty: '先查清裂纹到底从哪里来', others: '把已经售出的玉冠逐件召回', side: '把验玉的方法教给没有名帖的修士' },
 };
 
+const welcomeActions: Record<string, string> = {
+  qinglan: '同门一起把陷在泥里的粮车拉出来',
+  covenant: '先到药堂帮忙照顾排队的病人',
+  cloudledger: '与师兄核对眼前这箱灵材',
+  stillpine: '提灯下山，去接还没归来的采药人',
+  herb: '帮师父把试药者的病历记清楚',
+  tideguild: '随舵工核对新船的暗礁航线',
+  tidebreath: '同师兄查清石台淹水的潮位',
+  bellisle: '和师父重新校对两份碑拓',
+  star: '一起复查星台镜片与观测记录',
+  northforge: '跟师兄议好寒铁该如何分配',
+  nightward: '接替守夜三日的老阵师值守',
+  frostsword: '和师兄逐字核对残剑谱',
+  emberescort: '给还在排队的孩子先分一囊水',
+  redriver: '替新来的散修计算冲关的灵石开销',
+  sandbody: '先把受伤的新弟子扶出试炼场',
+  ashveil: '协助医修照料高烧的异法修士',
+  lawhall: '协助书记官核查散修的名册',
+  thousandseal: '逐张验过要交给来客的护身符',
+  hundredschools: '请门外求学的新人先入场听课',
+  jadeforge: '先把有裂纹的玉料挑出来',
+};
+const oldRules: Record<string, string> = {
+  qinglan: '同意剑宗先封泉布阵',
+  covenant: '按院规先把公粮留给山门',
+  cloudledger: '接受行会的加价安排',
+  stillpine: '同意把旧经封进库房',
+  herb: '同意先在谷内试用新药方',
+  tideguild: '按水盟要求征调民船',
+  tidebreath: '封住外河，先保宫中石台',
+  bellisle: '按书院旧说立碑，不再重校',
+  star: '继续沿用长老保存的旧星谱',
+  northforge: '按炉会决定，先接名门剑单',
+  nightward: '先封冰关，保住护山阵',
+  frostsword: '按剑庐旧例，以比武定古剑归属',
+  emberescort: '按盟中旧议，继续争夺古城',
+  redriver: '维持原有的共修供养分配',
+  sandbody: '仍以险地试炼考核新弟子',
+  ashveil: '同意封存所有异法症状记录',
+  lawhall: '按旧名册分配入庭名额',
+  thousandseal: '接受玉京独占旧符纸的订单',
+  hundredschools: '仍只让有名帖的人登台',
+  jadeforge: '按山庄新规，只给世家炼器',
+};
+const errandResults: Record<string, [string, string]> = {
+  qinglan: ['你和同门清出了塌方，粮车赶在天黑前下了山。', '你去泉边听了虞氏的顾虑，把封泉的争议带回了山门。'],
+  covenant: ['你把病人安置进干燥的屋里，没被淹的药材先送了过去。', '你核清分粮名册，发现几户人家已断粮数日。'],
+  cloudledger: ['你沿水路找到滞留的灵材，重新安排了交货。', '你先送出了仓内的存货，村里不必再等下一班船。'],
+  stillpine: ['你提灯找到迷路的采药人，天亮时一起回了观里。', '你留下陪家属等消息，直到山路那边传来平安的回音。'],
+  herb: ['你将药送到渡口，病人终于等到这一炉。', '你挑出发热腐坏的药材，记清了这批货的损失。'],
+  tideguild: ['你搭快舟靠近搁浅的货船，接回了困在礁边的船员。', '你与舵工修好了旧舟，水驿多了一条能用的船。'],
+  tidebreath: ['你重校了堤闸时辰，护阵赶在涨潮前开了。', '你先帮渔户搬出粮食和器具，低处的房屋仍要修补。'],
+  bellisle: ['你趁退潮拓下残碑，缺字的部分也原样留下。', '你对照两份碑拓，圈出了几处抄错的字。'],
+  star: ['你冒雪修好观测架，今夜的星象终于记进新册。', '你复查争议的星图，找到一处旧刻度的偏差。'],
+  northforge: ['你补好守夜队的刀刃，交货时已有能用的兵器。', '你守着寒铁完成剑胎，炉会仍在争论谁能用它。'],
+  nightward: ['你把断裂的阵旗立回冰关，晚归者有路可走。', '你越过雪线接回晚归的人，他们在封关前赶回了家。'],
+  frostsword: ['你护送古剑回到剑庐，沿路没有再起剑气伤人。', '你同守阵人查过剑气残痕，标出容易伤及村民的路段。'],
+  emberescort: ['你按旧图找到古井，车队入夜前补到了水。', '你留在后队照料病弱的人，让队伍不必丢下他们。'],
+  redriver: ['你找回受伤的借药人，也带回那只遗失的药箱。', '你把药材分给新来的散修，几家人先拿到了急需的药。'],
+  sandbody: ['你背出倒下的弟子，试炼场终于停了下来。', '你和教习立好防沙桩，但提醒他风暴来时必须撤人。'],
+  ashveil: ['你找到误练禁法的修士，先稳住他体内乱窜的异息。', '你核清异息的症状，留下一份可辨险情的记录。'],
+  lawhall: ['你核对两份契书，查出印章来自不同年份。', '你找到被删名册上的人，将他们的证言带回议庭。'],
+  thousandseal: ['你验出护身符漏画的纹路，坊里收回了那批货。', '你听到码头工人的伤情，也记下他买符时未被告知的限制。'],
+  hundredschools: ['你分别验证三派抄本，记下了几处真正相反的口诀。', '你领门外的新人入场，讲坛前总算留出了听课的位置。'],
+  jadeforge: ['你查清玉冠裂纹来自炉火过急，山庄重新定了火候。', '你帮忙召回卖出的玉冠，免得再有人戴上破损的法器。'],
+};
 const phases: Stage[] = ['welcome', 'errand', 'division', 'teaching', 'legacy'];
 const idFor = (id: string, stage: Stage) => 'sect-life-' + id + '-' + stage;
 export const SECT_LIFE_EVENTS: EventDef[] = SECTS.flatMap(sect => phases.map(stage => ({
@@ -98,17 +164,17 @@ export function getSectLifeEvent(g: Game, eventId: string): EventDef | undefined
     ({ ...base, title, text, choices, ...(cause ? { cause } : {}) });
   if (eventId.endsWith('-welcome')) return event(
     sect.name + ' · 新来的日子',
-    scene.arrival + teacher + '看见你在门前停下，叫你过来一起搭把手。',
+    (g.realm >= 4 ? '你以高阶修士身份受邀入门，山中的小事也并不因你修为高而消失。' : '') + scene.arrival + teacher + (g.realm >= 4 ? '请你一道商量该怎么处理。' : '看见你在门前停下，叫你过来一起搭把手。'),
     [
-      choice(sect.id, 'settle', '过去帮忙，跟大家一同做', { contribution: 8, stats: { foundation: 3 }, ...bond }, '忙完已经天黑。你记住了几位同门的名字。'),
-      choice(sect.id, 'study', '先去把不懂的功课弄明白', { progress: 20, stats: { insight: 3 } }, '你在书房待了一下午，第二天才回到门前。'),
+      choice(sect.id, 'settle', welcomeActions[sect.id], { contribution: 8, stats: { foundation: 3 }, ...bond }, '忙完已经天黑。你记住了几位同门的名字。'),
+      choice(sect.id, 'study', g.realm >= 4 ? '先查阅山门旧档与功法' : '先到书房温习本门功法', { progress: 20, stats: { insight: 3 } }, '你在书房待了一下午，第二天才回到门前。'),
     ]);
   if (eventId.endsWith('-errand')) {
     const reward = sectMissionEffect(g);
     return event(sect.name + ' · ' + sect.mission.name, scene.errand,
       [
-        choice(sect.id, 'errand', scene.duty, { ...reward }, '人和东西都安置妥了。执事把这一趟记进门中的账。'),
-        choice(sect.id, 'help', scene.others, { contribution: Math.max(8, Math.round((reward.contribution ?? 20) * 0.5)), stats: { reputation: 6, mind: -4 }, ...bond }, '你做了另外那件事，回来时门内已经有人知道了。'),
+        choice(sect.id, 'errand', scene.duty, { ...reward }, errandResults[sect.id][0]),
+        choice(sect.id, 'help', scene.others, { contribution: Math.max(8, Math.round((reward.contribution ?? 20) * 0.5)), stats: { reputation: 6, mind: -4 }, ...bond }, errandResults[sect.id][1]),
         choice(sect.id, 'rest', '这趟不去，留在山门修行', { progress: 24, stats: { mind: 3 } }, '你留在山门继续自己的修行，没有拿这次委托的报酬。'),
       ]);
   }
@@ -119,20 +185,20 @@ export function getSectLifeEvent(g: Game, eventId: string): EventDef | undefined
     return event(sect.name + ' · 门内争执',
       earlier + scene.argument + (standings.label === '闭山' ? '山门如今闭守，值守的人已经拿不出往年的供给。' : ''),
       [
-        choice(sect.id, 'rules', '照门里的规矩继续办', { contribution: 26, stats: { reputation: -4 }, ...bond }, '长老同意按旧规继续办理。山外的人没有因此改口。'),
+        choice(sect.id, 'rules', oldRules[sect.id], { contribution: 26, stats: { reputation: -4 }, ...bond }, '长老同意维持原来的安排。山外的人没有因此改口。'),
         choice(sect.id, 'people', scene.side, { contribution: 11, stats: { reputation: 8, mind: -5 } }, '你提出了另一种办法，门中有人不赞成，事情却没有就此被压下。'),
         choice(sect.id, 'distance', '不替任何一方下结论', { stats: { mind: 5 } }, '议事堂的人散了。你没有签下自己的名字。'),
       ]);
   }
   if (eventId.endsWith('-teaching')) return event(sect.name + ' · 传功',
     '你在山门做事已有一段日子。' + teacher + '把一册' + sect.specialty.name + '放到你面前，想亲自教你。', [
-      choice(sect.id, 'inherit', '留在山门，把这门法学完', {}, '你随传功人练了多日，终于把这门法学会。'),
+      { ...choice(sect.id, 'inherit', '留在山门，把这门法学完', {}, '你随传功人练了多日，终于把这门法学会。'), hint: `消耗 ${sect.specialty.cost} 宗门贡献` },
       choice(sect.id, 'defer', '暂且不学，先做自己的事', {}, '传功人把书收回架上。你仍可以自己再来请教。'),
     ]);
   const change = chosen(g, sect.id, 'people') ? '当年你替山外的人说过话。'
     : chosen(g, sect.id, 'rules') ? '当年你站在旧规矩一边。' : '当年你没有替任何人作主。';
   const canLearn = g.sect === sect.id && !g.flags.includes(sect.specialty.id) && g.contribution >= sect.specialty.cost;
-  const learnChoice = canLearn ? [choice(sect.id, 'inherit', '随师父把这门法学完', {}, '你在门中住了一段日子，把口诀和用法都学会了。')] : [];
+  const learnChoice = canLearn ? [{ ...choice(sect.id, 'inherit', '随师父把这门法学完', {}, '你在门中住了一段日子，把口诀和用法都学会了。'), hint: `消耗 ${sect.specialty.cost} 宗门贡献` }] : [];
   return event(sect.name + ' · 旧事又翻到一页',
     scene.later + change + (mentor?.alive ? teacher + '还记得当年那次议论。' : '当年的几位长者已经不在。'),
     [

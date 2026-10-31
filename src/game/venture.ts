@@ -26,10 +26,10 @@ export function getVentureEvent(g:Game,id:string):EventDef|undefined {
   const offer=expeditionOffers(g).find(o=>id==='venture-'+o.id);
   if(!offer)return;
   const choices:Choice[]=[
-    {label:'沿着这条线索走进去',hint:offer.risk,autoScore:4,effect:{flag:'venture-enter:'+offer.id},successText:'你带上行装，决定亲自看看传闻中究竟有什么。'},
+    {label:'备好行装，亲自探查',hint:offer.risk,cost:offer.cost,autoScore:4,effect:{flag:'venture-enter:'+offer.id},successText:'你带上行装，决定亲自探查这处地方。'},
     {label:'记住这个消息，继续眼前的生活',hint:'',autoScore:6,effect:{flag:'venture-pass:'+offer.id},successText:'你没有踏进险地。那段传闻和这次错过，都属于你的经历。'},
   ];
-  return {...base,title:offer.title,text:offer.description+'这不是凭空出现的奖赏；进去之后会有危险，也可能空手而归。',choices};
+  return {...base,title:offer.title,text:offer.description+'入口尚未探明，备齐行装才能进去；遇险也可能空手而归。',choices};
 }
 export function recordVentureChoice(g:Game,event:EventDef,choice:Choice,hooks:Hooks){
   if(!event.id.startsWith('venture-')||!choice.effect.flag?.startsWith('venture-enter:'))return;

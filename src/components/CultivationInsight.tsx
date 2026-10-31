@@ -37,6 +37,5 @@ export function BreakthroughInsight({ game: g, usePill }: { game: Game; usePill:
     <summary>突破明细</summary>
     <dl>{factors.map(f => <div key={f.label}><dt>{f.label}</dt><dd className={f.value < 0 ? 'insight-negative' : ''}>{points(f.value)}</dd></div>)}</dl>
     <div className="insight-total"><span>本次实际成功率</span><strong data-testid="explained-breakthrough-chance">{Math.round(breakthroughChance(g, usePill) * 100)}%</strong></div>
-    <p>各项相加，按现有规则限制在单次 7%—90%。这不是一生的飞升率，也不参考其他人物的结局。</p>
   </details>;
 }

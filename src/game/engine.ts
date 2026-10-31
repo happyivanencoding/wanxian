@@ -206,10 +206,17 @@ export function getEvent(g: Game, id: string | null = g.pending): EventDef | und
   if (id === 'wounded-friend') {
     const saved = g.flags.find(flag => flag.startsWith('wounded-person:'))?.slice('wounded-person:'.length);
     const person = saved ? g.npcs.find(npc => npc.id === saved) : g.npcs.find(npc => npc.alive && !['rival', 'enemy'].includes(npc.role)) ?? g.npcs.find(npc => npc.alive);
+    if (person && !person.alive) return { ...original,
+      text: `${person.name}${person.realm === 6 ? '已飞升离界' : '已经离世'}。旧医馆寄来一册${person.name}留下的病中手记。末页列着尚未解决的药方，你可以决定怎么处理这份遗稿。`,
+      choices: [
+        { label: '资助旧医馆整理医案', hint: '', cost: 35, autoScore: 8, effect: { stats: { mind: 5 }, flag: 'friend-medical-legacy' }, successText: '你把整理医案的钱交给医馆。后来查阅的人能看到原稿，也知道哪些地方尚未验证。' },
+        { label: '抄出医方，交给附近药师', hint: '', autoScore: 6, effect: { stats: { insight: 4 } }, successText: '你将药方注明未验证的部分交给药师，没有把旧人的手记说成现成的灵丹。' },
+        { label: '收好手记，暂时不做处理', hint: '', autoScore: 5, effect: { stats: { mind: 2 } }, successText: '手记留在箱底。你没有仓促替旧人完成那些事。' },
+      ],
+    };
     if (person) return { ...original,
-      text: person.alive ? `${person.name}重伤而归。门外放着一把断剑，屋内迟迟没有灯火。你认得那把剑。如今这段相识来到了需要回应的时候。` : `${person.name}${person.realm === 6 ? '已飞升离界' : '已经离世'}。旧日托存的病中手记辗转来到你手里，记着那段未能相见的日子。`,
+      text: `${person.name}重伤而归。门外放着一把断剑，屋内迟迟没有灯火。你认得那把剑。如今这段相识来到了需要回应的时候。`,
       choices: original.choices.map((choice, index) => ({ ...choice,
-        ...(!person.alive ? { label: ['替旧日的救治留下资助', '把旧医方整理给后来者', '收好手记，暂不重读'][index], hint: choice.hint.replace(/情谊 \+\d+ · ?/, '') } : {}),
         effect: { ...choice.effect, npcId: person.id },
         ...(choice.delayed ? { delayed: { ...choice.delayed, text: `${person.name}预先托存的一柄秋水剑辗转送到你手里。与此人相连的那段往事，留在剑鞘内的字迹中。`, effect: { ...choice.delayed.effect, npcId: person.id } } } : {}),
       })),
@@ -292,8 +299,8 @@ function selectEvent(g: Game, director?: DirectorControl) {
   }
 }
 export function choiceUnavailable(g: Game, choice: Choice): string | null {
-  if ((choice.cost ?? 0) > g.stones) return `需要 ${choice.cost} 灵石`;
-  if (choice.requiresStat && g.stats[choice.requiresStat[0]] < choice.requiresStat[1]) return `未达到 ${choice.requiresStat[1]} 点属性门槛`;
+  if ((choice.cost ?? 0) > g.stones) return `需要 ${choice.cost} 灵石，现有 ${g.stones}，还差 ${choice.cost! - g.stones}`;
+  if (choice.requiresStat && g.stats[choice.requiresStat[0]] < choice.requiresStat[1]) return `需要 ${({health:'体魄',mind:'道心',insight:'悟性',foundation:'根基',reputation:'声望',alchemy:'丹术',combat:'战技'} as Record<Stat,string>)[choice.requiresStat[0]]} ${choice.requiresStat[1]}`;
   return null;
 }
 function choiceChanges(before: Game, after: Game): string {
@@ -329,7 +336,7 @@ function resolveChoice(g: Game, index: number, automatic = false): string | null
   const unavailable = choiceUnavailable(g, choice);
   if (unavailable) return unavailable;
   const before = structuredClone(g);
-  if (choice.cost) g.stones -= choice.cost;
+  if (choice.cost && !choice.effect.flag?.startsWith('venture-enter:')) g.stones -= choice.cost;
   const success = choice.chance === undefined || random(g) < choice.chance;
   gain(g, success ? choice.effect : choice.failure);
   if (success) {
@@ -523,7 +530,7 @@ function perform(g: Game, action: Action, director?: DirectorControl): string | 
       if (item.market === false) return '坊市没有出售此物';
       if (g.realm < item.minRealm) return '境界不足，无法购得此物';
       const price = itemPrice(g, item.id);
-      if (g.stones < price) return '灵石不足';
+      if (g.stones < price) return `需要${price}灵石，现有${g.stones}`;
       g.stones -= price; gain(g, { item: item.id });
       log(g, '坊市购入', `以${price}灵石购入${item.name}。`, 'economy');
     } else {
@@ -555,7 +562,7 @@ function perform(g: Game, action: Action, director?: DirectorControl): string | 
     if (!recipe) return '没有这份丹方';
     if (!g.home.furnace) return '先在洞府建造青铜丹炉';
     if (g.stats.alchemy < recipe.level) return `丹术需达到 ${recipe.level}`;
-    if (g.stones < recipe.fee) return '炉火费用不足';
+    if (g.stones < recipe.fee) return `开炉需要${recipe.fee}灵石，现有${g.stones}`;
     if (Object.entries(recipe.materials).some(([id, amount]) => (g.inventory[id] || 0) < amount)) return '炼丹材料不足';
     g.stones -= recipe.fee;
     for (const [id, amount] of Object.entries(recipe.materials)) g.inventory[id] -= amount;
@@ -570,7 +577,7 @@ function perform(g: Game, action: Action, director?: DirectorControl): string | 
     if (region.id === g.region) return '你已在此处';
     if (g.realm < region.minRealm) return `抵达此地需要${REALMS[region.minRealm].name}境`;
     const cost = travelPrice(g, region.id);
-    if (g.stones < cost) return '路费不足';
+    if (g.stones < cost) return `路费需要${cost}灵石，现有${g.stones}`;
     g.stones -= cost; g.region = region.id;
     if (!g.visited.includes(region.id)) g.visited.push(region.id);
     log(g, '远行 · ' + region.name, `支付${cost}灵石路费。${storyTravelMultiplier(g) < 1 ? '沿途驿站接应，路费减少。' : ''}${region.description}`, 'world', true);
@@ -607,7 +614,7 @@ function perform(g: Game, action: Action, director?: DirectorControl): string | 
     const home = HOMES.find(h => h.id === action.id);
     if (!home) return '未知的洞府设施';
     if ((g.home[home.id] || 0) >= home.max) return '设施已达最高等级';
-    const cost = homePrice(g, home.id); if (g.stones < cost) return '灵石不足';
+    const cost = homePrice(g, home.id); if (g.stones < cost) return `建造需要${cost}灵石，现有${g.stones}`;
     g.stones -= cost; g.home[home.id] = (g.home[home.id] || 0) + 1;
     log(g, '洞府小成', `${home.name}升至${g.home[home.id]}级，消耗${cost}灵石。${home.description}`, 'economy', true);
   } else if (action.type === 'npc') {

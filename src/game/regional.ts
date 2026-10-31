@@ -63,6 +63,13 @@ const locales: Record<RegionId, Locale> = {
   },
 };
 const regionIds = Object.keys(locales) as RegionId[];
+const arrivalActions: Record<RegionId, { help: string; business: string; observe: string; work: string }> = {
+  qinglan: { help: '同虞听溪核查泉契和石化泉水', business: '替陆家整理修渠用料账目', observe: '到泉边听村民说说缺水的事', work: '陆家付了18灵石抄账酬劳，你也记下他们为何坚持修渠。' },
+  river: { help: '帮闻照水查清药箱与押金', business: '替沈家清点码头货单', observe: '先登记船上病人和缺药情况', work: '沈家付了18灵石点货酬劳，码头的争议还没结束。' },
+  north: { help: '同顾沉舟比对寒铁和旧碑', business: '替程家整理守夜阵的旧账', observe: '先问清停炉会影响哪些人', work: '程家付了18灵石抄录酬劳，寒铁的归属仍待查。' },
+  desert: { help: '陪燕无赦查验假图和水源', business: '替殷家核对售图的买卖账', observe: '先向流民问清错路的经过', work: '殷家付了18灵石盘账酬劳，你看见了几处可疑的交易。' },
+  central: { help: '帮苏流萤核对渡海器图', business: '替秦家估算器图的交易价格', observe: '先听裴家和散修各自的说法', work: '秦家付了18灵石估价酬劳，但器图还没有获准公开。' },
+};
 const beats: Beat[] = ['arrival','dispute','apprentice','journey','echo'];
 const beatsName: Record<Beat,string> = { arrival:'乡里初逢',dispute:'旧事纷争',apprentice:'师承来信',journey:'去往别处的路',echo:'后来的一页' };
 export const REGIONAL_EVENTS: EventDef[] = regionIds.flatMap(region => beats.map(beat => ({
@@ -107,9 +114,9 @@ export function getRegionalEvent(g:Game,id:string):EventDef|undefined {
   const base=REGIONAL_EVENTS.find(e=>e.id===id)!,person=name(g,region);
   const relation:Effect=actor(g,region)?.alive?{npcId:actor(g,region)!.id,npcRelation:6}:{};
   if(beat==='arrival') return result(base,nameOf(region)+' · '+local.family+'旧事',local.origin+local.arrival,[
-    choice(region,'help','帮忙查清这件事',{stats:{insight:4},...relation},person+'与你一起记下证据，往后认得你的行事方式。'),
-    choice(region,'business','听取另一方的条件',{stones:18,stats:{reputation:3}},'你听完另一方的打算，也因这段往来得到资用。'),
-    choice(region,'observe','先把见闻记下',{stats:{mind:4}},'你没有匆忙站队，但记住了事情的来路。'),
+    choice(region,'help',arrivalActions[region].help,{stats:{insight:4},...relation},person+'与你核实了眼前的证据。对方记下了你的帮助。'),
+    choice(region,'business',arrivalActions[region].business,{stones:18,stats:{reputation:3}},arrivalActions[region].work),
+    choice(region,'observe',arrivalActions[region].observe,{stats:{mind:4}},'你记下了几方的说法，没有立即替他们作出决定。'),
   ]);
   if(beat==='dispute'){
     const opening=(g.flags.includes(flag(region,'help'))?person+'这次直接来找你。':
@@ -118,7 +125,7 @@ export function getRegionalEvent(g:Game,id:string):EventDef|undefined {
       qinglan:[
         choice(region,'protect','留下修泉，让村民先有水喝',{stats:{health:-12,reputation:7},...relation},'泉口没有立刻复原，但村里终于能取到干净的水。'),
         choice(region,'authority','交给剑盟封山，带走一块旧院断玉',{item:'relic-jade'},'封条立在泉口，你带走了上面有旧印的断玉。'),
-        choice(region,'relocate','帮陆家挪水渠，安置沿线人家',{stones:-12,stats:{mind:5}},'新水渠绕开坏掉的山脚，原来的村舍还留在风雨里。'),
+        choice(region,'relocate','出资帮陆家挪渠，安置沿线人家',{stats:{mind:5}},'新水渠绕开坏掉的山脚，原来的村舍还留在风雨里。',{cost:12}),
       ],
       river:[
         choice(region,'open','把药方抄给沿途药船',{stats:{alchemy:8,reputation:6},...relation},'许多药船拿到了方子，配药的人仍需自己分辨火候。'),
@@ -146,9 +153,10 @@ export function getRegionalEvent(g:Game,id:string):EventDef|undefined {
   if(beat==='apprentice') {
     const available=SECTS.filter(s=>s.home===region&&s.minRealm<=g.realm&&regionalStanding(g,region).strength>=20);
     if(g.sect||!available.length) return;
-    const choices=available.map(s=>choice(region,'join:'+s.id,'跟随'+s.name+'的传功人学艺',{},'引荐人替你作保，山门愿意收你。'));
+    const honored=g.realm>=4;
+    const choices=available.map(s=>choice(region,'join:'+s.id,honored?'受邀入'+s.name+'传道':'跟随'+s.name+'的传功人学艺',{},honored?'门中按高阶修士的礼数迎接你，也请你照看年轻弟子的修行。':'引荐人替你作保，山门愿意收你。'));
     choices.push(choice(region,'free','暂不入门，仍以散修身份生活',{},'你谢过引荐，继续走自己的路。'));
-    return result(base,'有人愿意引你入门',person+'带来几张门中名帖，说有人愿替你作保。去的话可以进门修习，不去也无妨。',choices);
+    return result(base,honored?'宗门的来请':'有人愿意引你入门',honored?person+'带来宗门的请帖。门中知道你已是高阶修士，想请你入山传道，往后也可交换各自所学。':person+'带来几张门中名帖，说有人愿替你作保。去的话可以进门修习，不去也无妨。',choices);
   }
   if(beat==='journey'){
     const destinations=local.destinations.map(dest=>choice(region,'travel:'+dest,'随同行者前往'+nameOf(dest),{},'你与同行者穿过山海。来到'+nameOf(dest)+'后，遇上的已是另一片土地的人与事。'));
@@ -181,9 +189,9 @@ export function recordRegionalChoice(g:Game,event:EventDef,selected:Choice,hooks
   if(action.startsWith('join:')){
     const sect=SECTS.find(s=>s.id===action.slice(5));
     if(sect&&!g.sect&&g.realm>=sect.minRealm&&regionalStanding(g,region).strength>=20){
-      g.sect=sect.id;g.sectRank=0;g.contribution=0;
+      g.sect=sect.id;g.sectRank=g.realm>=4?3:g.realm>=3?2:0;g.contribution=0;
       g.flags.push('sect-joined:'+sect.id+':'+g.age);
-      hooks.log(g,'有了师承',(person?.name??'当地修士')+'替你作保，'+sect.name+'收你为外门弟子；引荐人承担本次入门资用。','relationship',true);
+      hooks.log(g,'有了师承',g.realm>=4?sect.name+'延请你担任传功长老，一同教习与研究；不收取入门费用。':(person?.name??'当地修士')+'替你作保，'+sect.name+'按你的现有修为收你为门中弟子；引荐人承担本次入门资用。','relationship',true);
     }
   }
   if(action.startsWith('travel:')){

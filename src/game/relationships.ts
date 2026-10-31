@@ -119,6 +119,15 @@ function pursuitEvent(g: Game, npc: NPC): EventDef {
   const escape = limit(0.72 + (g.realm - npc.realm) * 0.1 + (g.region === 'qinglan' ? 0.08 : 0), 0.18, 0.95);
   const price = Math.ceil(45 + npc.realm * 35 + g.stones * 0.2);
   const mark = (action: string) => `pursuit-choice:${npc.id}:${action}`;
+  if (g.realm >= npc.realm + 2) return {
+    id: 'rival-pursuit', title: '路上的旧怨', kind: 'turning', category: 'relationship',
+    text: `${npc.name}循着旧日线索找到了你。对方如今是${REALMS[npc.realm].name}境，而你已是${REALMS[g.realm].name}境。${npc.grievance ?? npc.story}认出你后，${npc.name}停在远处，没有拔剑，只托人问你打算如何了结旧账。`,
+    choices: [
+      { label: '把当年的事讲清楚，不承诺补偿', hint: '', autoScore: 7, effect: { flag: mark('talk') }, successText: `你说明当年为何这样做。${npc.name}仍有怨意，却没有再向前逼近。` },
+      { label: '出资补偿，结束这段追索', hint: `${price} 灵石`, cost: price, autoScore: 8, effect: { flag: mark('settle') }, successText: `${npc.name}收下补偿，此事到此为止。你们仍是陌路。` },
+      { label: '不作回应，继续赶路', hint: '', autoScore: 6, effect: { flag: mark('ignore') }, successText: `你没有停下。${npc.name}明白单凭如今的修为无法拦你，转身离开。` },
+    ],
+  };
   const choices: Choice[] = [
     { label: '迎战，决生死', hint: `胜算 ${Math.round(chance * 100)}% · 失败体魄 −${damage}${damage >= g.stats.health ? '，会陨落' : ''}`, chance, autoScore: chance > 0.76 ? 10 : -8, effect: { flag: mark('fight'), stats: { combat: 5, reputation: 3 } }, failure: { stats: { health: -damage, mind: -8 } }, successText: `你击败了${npc.name}。这场生死之争终于结束，对方再也不能追来。`, failureText: `${npc.name}的攻势击穿了你的防护。${damage >= g.stats.health ? '这一次，你没能活着离开。' : '你带伤逃离，旧怨尚未结束。'}` },
     { label: '脱身，不恋战', hint: `脱身 ${Math.round(escape * 100)}% · 失手体魄 −${Math.min(42, damage)}${Math.min(42, damage) >= g.stats.health ? '，会陨落' : ''}`, chance: escape, autoScore: 7, effect: { flag: mark('escape') }, failure: { stats: { health: -Math.min(42, damage) } }, successText: `你摆脱了${npc.name}的追索，但没有抹掉双方的旧怨。`, failureText: `${npc.name}在退路上截住了你。${Math.min(42, damage) >= g.stats.health ? '伤势已经无法挽回。' : '你付出伤势才勉强脱身。'}` },
@@ -147,12 +156,12 @@ export function getRelationshipEvent(g: Game, id: string): EventDef | undefined 
   const scenes: Record<string, string> = {
     'meet-road': `渡口的小船搁在浅滩，${npc.name}正把一张湿地图摊开。对方也想知道河流更远的地方有什么，你们还不知道彼此会不会再见。`,
     'meet-healer': `山雨来时，${npc.name}的药篮翻在路边。这个药师正在寻找一种当地少见的草，愿意用自己的医术交换你的帮助。`,
-    'meet-heir': `${npc.name}独自来买一件旧物，却不肯用家族的名帖压价。摊主已经收起货物，你在旁边看见了这一幕。`,
+    'meet-heir': `${npc.name}带着一袋灵玉独自来买旧物，却不肯用家族的名帖压价。摊主已经收起货物，你在旁边看见了这一幕。`,
     'meet-sword': `剑碑前，${npc.name}问你是否认得一招残缺的剑式。碑下压着一封旧信，封口已经磨白。`,
-    'meet-stranger': `${npc.name}在旅舍与你同桌。这位${npc.title}今年${npc.age}岁，已在${REALMS[npc.realm].name}境，想${npc.desire}。你们有各自的来路。`,
+    'meet-stranger': `${npc.name}在旅舍与你同桌，桌边放着一袋灵玉。这位${npc.title}今年${npc.age}岁，已在${REALMS[npc.realm].name}境，想${npc.desire}。你们有各自的来路。`,
   };
   const choices: Choice[] = [
-    { label: id === 'meet-healer' ? '帮忙寻药，一起避雨' : '同行一程', hint: '', autoScore: 8, effect: { flag: mark('join'), npcId: npc.id, npcRelation: 22 }, successText: `你与${npc.name}留下了可以再相见的地址。临别时，对方又回头招了招手。` },
+    { label: ({'meet-road':'帮忙辨认渡口水路','meet-healer':'帮忙寻药，一起避雨','meet-heir':'帮忙查清旧物的来历','meet-sword':'一起查读残缺的剑式','meet-stranger':'坐下来聊聊各自的来路'} as Record<string,string>)[id], hint: '', autoScore: 8, effect: { flag: mark('join'), npcId: npc.id, npcRelation: 22 }, successText: `你与${npc.name}留下了可以再相见的地址。临别时，对方又回头招了招手。` },
     { label: '聊过便各自上路', hint: '', autoScore: 6, effect: { flag: mark('pass'), npcId: npc.id, npcRelation: 3 }, successText: `你记住了${npc.name}，对方也记住了你。这一面还不足以成为承诺。` },
   ];
   if (g.age >= 16 && (id === 'meet-healer' || npc.realm >= 3)) choices.push({ label: '接受对方的援手', hint: '体魄 +18', autoScore: g.stats.health < 60 ? 10 : 5, effect: { flag: mark('aid'), stats: { health: 18 }, npcId: npc.id, npcRelation: 10 }, successText: `${npc.name}没有索要回报。临别前，对方把药方留在了桌上。` });
@@ -181,7 +190,8 @@ export function recordRelationshipChoice(g: Game, event: EventDef, choice: Choic
     const npc = eventActor(g, event.id);
     if (!npc) return;
     const action = choice.effect.flag?.split(':').at(-1);
-    npc.pursuitAt = g.age + (action === 'shelter' ? 45 : 18) + Math.floor(hooks.random(g) * 15);
+    npc.pursuitAt = g.age + (action === 'shelter' || action === 'talk' || action === 'ignore' ? 45 : 18) + Math.floor(hooks.random(g) * 15);
+    if (success && action === 'talk') npc.hostility = Math.max(20, (npc.hostility ?? 0) - 15);
     if (success && action === 'fight') { npc.alive = false; npc.hostility = 0; npc.story = `${npc.age}岁，在追索中被你击败身亡。`; }
     if (success && action === 'settle') { npc.hostility = 0; npc.role = 'rival'; npc.story = `${g.age}岁，你付出资用了结旧账。彼此仍无亲近之意。`; }
     if (!success && g.stats.health <= 0) return `${npc.name}以${REALMS[npc.realm].name}境与${npc.gear?.name ?? '法器'}结束了这场旧怨。你没能活着离开${REGIONS.find(region => region.id === g.region)!.name}。`;

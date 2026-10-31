@@ -11,7 +11,7 @@ const middleIds: Record<StoryPath, string[]> = {
 };
 const has = (g: Game, flag: string) => g.flags.includes(flag);
 const add = (g: Game, flag: string) => { if (!has(g, flag)) g.flags.push(flag); };
-const c = (label: string, hint: string, effect: Effect, successText: string): Choice => ({ label, hint, effect, successText, autoScore: 5 });
+const c = (label: string, hint: string, effect: Effect, successText: string, extra: Partial<Choice> = {}): Choice => ({ label, hint, effect, successText, autoScore: 5, ...extra });
 const event = (id: string, title: string, text: string, choices: Choice[], kind: EventDef['kind'] = 'turning'): EventDef => ({ id, title: `命途 · ${title}`, text, category: 'life', kind, once: true, weight: 0, choices });
 
 // The registry also keeps these IDs valid in v1 saves. Rendering and resolving use
@@ -150,7 +150,7 @@ export function getStoryEvent(g: Game, id: string): EventDef | undefined {
       : path === 'lone' ? '一份残卷被包在旧纸里，末页只留着一句尚无答案的疑问。它指向孤峰的遗迹；而城中的灯火与山外的商队，也仍在等愿意同行的人。'
       : '行路图标出了沿途人家的姓名，空白处写着缺粮、缺药与失修的山道。商队在寻新的同行者；你也可以应下山城的托付，或带着残卷去孤峰求道。';
     return result(`${firstContact}${scene}`, invitationCause(g, path), [
-      c('应下托付，与一城人互相照应', '守望人间：承担护城供养；声望 +6、道心 +5', { storyPath: 'guardian', stats: { reputation: 6, mind: 5 } }, `你把名字写进守望簿。${guardian}的旧愿从此与你相连，今后的安居与离散都会留下痕迹。`),
+      c('应下托付，与一城人互相照应', '守望人间：承担护城供养；声望 +6、道心 +5', { storyPath: 'guardian', stats: { reputation: 6, mind: 5 } }, `你把名字写进守望簿。${guardian}的旧愿从此与你相连，今后的安居与离散都会留下痕迹。`, { annualCost: 8 }),
       c('带着残卷，去孤峰寻找答案', '孤峰问道：修炼加快，身心消耗增加；悟性 +6、修为 +15', { storyPath: 'lone', stats: { insight: 6 }, progress: 15 }, `你带走${lone}经手的残卷。此后要研究什么、与谁分享，会决定这份传承的去处。`),
       c('沿着商路，去看山外的生活', '山河商路：每年盟约收入，修行略慢；灵石 +30', { storyPath: 'contract', stones: 30 }, `你接下${trader}留下的行路图。路上的供给与信任，从此也是你要经营的人生。`),
     ].filter(choice => { const actor = storyPerson(g, choice.effect.storyPath!); return Boolean(actor && actor.role !== 'enemy'); }));
@@ -158,12 +158,12 @@ export function getStoryEvent(g: Game, id: string): EventDef | undefined {
   switch (id) {
     case 'story-guardian-healing':
       return result(`${arrival}守望的山城接连收容伤者。药师们能暂时熬药，却还没有长久的供给。你可以把这些年的积累变成一间药堂，也可以把医药知识教给每户人家。`, `${name}的药学旧札与你的守望之约相接；这些年的草药、手艺或往来，使救治成为你能参与的事情。`, [
-        c('把空院改成药堂，持续供药', '建立药堂：每年体魄 +0.9；每3年灵草 +1；药堂需要3灵石年度供给', { flag: 'story-clinic', stats: { alchemy: 8 }, ...relation(8) }, `${name}的旧方被抄进药堂册中。往后药堂按年运转，伤者有去处，你也得到持续照应。`),
-        c('教会各家照料彼此，建立互助簿', '互助网络：每年道心 +0.6、根基 +0.3；救治不依赖一处药堂', { flag: 'story-care-network', stats: { reputation: 8 }, ...relation(5) }, '家家留下一册简单医方。你不必独自照看每盏灯，城中人开始学会相互照料。'),
+        c('把空院改成药堂，持续供药', '建立药堂：每年体魄 +0.9；每3年灵草 +1；药堂需要3灵石年度供给', { flag: 'story-clinic', stats: { alchemy: 8 }, ...relation(8) }, `${name}的旧方被抄进药堂册中。往后药堂按年运转，伤者有去处，你也得到持续照应。`, { annualCost: 7 }),
+        c('教会各家照料彼此，建立互助簿', '互助网络：每年道心 +0.6、根基 +0.3；救治不依赖一处药堂', { flag: 'story-care-network', stats: { reputation: 8 }, ...relation(5) }, '家家留下一册简单医方。你不必独自照看每盏灯，城中人开始学会相互照料。', { annualCost: 4 }),
       ]);
     case 'story-guardian-exodus':
       return result(`${arrival}连年的山道损毁让旧城越来越难以获得供给。居民已清点好家当：有人愿意留下重建，有人想沿商路另寻安居地。你守护的是一座城，还是一起生活过的人？`, `你曾立下守望之约；${g.region !== (g.visited[0] ?? 'qinglan') ? '亲自远行的经历让你知道城外仍有道路。' : g.era === 'chaos' ? '烽火里的安居始终需要付出。' : '这些年的护卫经历让迁居与重建都成为可行的选择。'}`, [
-        c('留下修复旧城，让守望能延续', '守城成形：每年根基 +0.4、声望 +0.3；旧城供养继续', { flag: 'story-watch', stats: { foundation: 7, health: -5 }, ...relation(7) }, '你和愿意留下的人重修山道。修复不会一夜完成，但每年的守望都有了接续。'),
+        c('留下修复旧城，让守望能延续', '守城成形：每年根基 +0.4、声望 +0.3；旧城供养继续', { flag: 'story-watch', stats: { foundation: 7, health: -5 }, ...relation(7) }, '你和愿意留下的人重修山道。修复不会一夜完成，但每年的守望都有了接续。', { annualCost: has(g, 'story-clinic') ? 7 : 4 }),
         c('带愿意离开的人迁居，改走商路', '人生转向山河商路：旧守望写入年谱；停止旧路线供养，获得行旅补给', { storyPath: 'contract', flag: 'story-caravan', stones: 25, stats: { mind: 5 } }, `你把${name}的旧约连同守望簿带上行囊。此后以商路收入和行旅补给维持新生活，旧城的历史仍然属于你。`),
       ]);
     case 'story-lone-riddle':

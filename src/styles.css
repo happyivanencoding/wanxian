@@ -3033,6 +3033,7 @@ button:not(:disabled):active {
 }
 .toast {
   position:fixed;
+  pointer-events:none;
   left:calc(50% + var(--sidebar)/2);
   bottom:103px;
   transform:translateX(-50%);
@@ -3055,6 +3056,7 @@ button:not(:disabled):active {
   bottom:30px
 }
 .toast>button {
+  pointer-events:auto;
   color:inherit;
   display:grid;
   place-items:center;

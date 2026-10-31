@@ -30,7 +30,7 @@ const PREPARATION_ATTAINMENTS: Attainment[] = [
   earned(1, 'meditate', '归元内景', '所有年度重心的基础修炼速度提高5%。', { training: 1.05 }),
   earned(1, 'medicine', '药性相和', '回春丹、清心丹的对应恢复量增加6。', { pillPotency: 6 }),
   earned(2, 'temper', '护体罡气', '年度历练受伤时，体魄伤害减少15%。', { adventureDamage: 0.85 }),
-  earned(2, 'meditate', '丹心自照', '今后每次突破成功率增加2.5个百分点，仍受90%上限约束。', { breakthrough: 0.025 }),
+  earned(2, 'meditate', '丹心自照', '今后每次突破成功率增加2.5个百分点。', { breakthrough: 0.025 }),
   earned(2, 'medicine', '丹火回收', '炼丹失败时能回收1株灵草，其他材料和炉费仍会消耗。', { failedCraftHerbs: 1 }),
   earned(3, 'temper', '肉身载道', '突破失败后的调息年限减少1年，最短仍为1年。', { cooldownReduction: 1 }),
   earned(3, 'meditate', '观想归藏', '突破失败保留至少78%修为，替代普通的72%。', { failureRetention: 0.78 }),
@@ -50,7 +50,7 @@ const EXPEDITION_ATTAINMENTS: Attainment[] = [
   { id: 'exp-rescue-cache', name: '药库经营', description: '营生重心每年额外收入5灵石。', bonus: { workIncome: 5 } },
   { id: 'exp-tomb-sword', name: '照夜剑意', description: '年度历练所得灵石提高15%。', bonus: { adventureIncome: 1.15 } },
   { id: 'exp-tomb-ward', name: '照夜守阵', description: '年度历练受伤时体魄伤害减少20%。', bonus: { adventureDamage: 0.8 } },
-  { id: 'exp-observatory-chart', name: '无昼星图', description: '突破成功率增加4个百分点，仍受90%上限约束。', bonus: { breakthrough: 0.04 } },
+  { id: 'exp-observatory-chart', name: '无昼星图', description: '突破成功率增加4个百分点。', bonus: { breakthrough: 0.04 } },
   { id: 'exp-observatory-anchor', name: '渡厄守心诀', description: '突破失败保留至少82%修为，替代普通的72%。', bonus: { failureRetention: 0.82 } },
   { id: 'legacy-eclipse', name: '蚀日炼身传承', description: '历练修为提高35%，每年体魄恢复1.5；额外供养5灵石／年，声望每年承受0.3的压力。承接时获得的5点资质永久保留。', bonus: { adventureTraining: 1.35, upkeep: 5, yearHealth: 1.5, yearReputation: -0.3 } },
 ];

@@ -55,7 +55,7 @@ export interface Effect {
   item?: string; amount?: number; flag?: string; npcRelation?: number; rootBoost?: number;
   npcId?: string; storyPath?: 'guardian' | 'lone' | 'contract';
 }
-export interface Choice { label: string; hint: string; effect: Effect; cost?: number; requiresStat?: [Stat, number]; chance?: number; failure?: Effect; successText?: string; failureText?: string; autoScore: number; delayed?: { after: number; title: string; text: string; effect: Effect } }
+export interface Choice { label: string; hint: string; effect: Effect; cost?: number; annualCost?: number; requiresStat?: [Stat, number]; chance?: number; failure?: Effect; successText?: string; failureText?: string; autoScore: number; delayed?: { after: number; title: string; text: string; effect: Effect } }
 export interface EventDef { id: string; title: string; text: string; category: LogKind; kind?: 'routine' | 'opportunity' | 'turning'; cause?: string; minAge?: number; maxAge?: number; minRealm?: number; maxRealm?: number; focus?: Focus; region?: string; flag?: string; notFlag?: string; sect?: boolean; cooldown?: number; once?: boolean; weight?: number; choices: Choice[] }
 export interface BirthConfig { name: string; gender: string; origin: string; era: string; route: string; region?: string; mode: 'seeker' | 'all'; fastStart: boolean; seed: string; guided?: boolean }
 export interface LifeRecord { id: string; name: string; age: number; realm: number; origin: string; route: string; ending: string; endingText: string; totalStones: number; choices: number; legacy: string; logs: Log[]; date: string }

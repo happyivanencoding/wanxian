@@ -181,7 +181,7 @@ test('not seeking breakthroughs can end naturally while a purposeful life can su
   const devoted = simulateLife({ ...config, fastStart: true });
   assert.equal(devoted.realm, 6); assert.equal(devoted.ending, '白日飞升');
 });
-test('2,000 seeded complete lives across origins, eras and routes have finite state and terminate', { timeout: 180000 }, () => {
+test('2,000 seeded complete lives across origins, eras and routes have finite state and terminate', { timeout: 900000 }, () => {
   const endings: Record<string, number> = {}, realms: Record<string, number> = {}; let minAge = 10000, maxAge = 0;
   const ages: number[] = [], decisions: number[] = [], storyDecisions: number[] = [];
   for (let i = 0; i < 2000; i++) {

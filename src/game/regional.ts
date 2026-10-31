@@ -112,8 +112,8 @@ export function getRegionalEvent(g:Game,id:string):EventDef|undefined {
     choice(region,'observe','先把见闻记下',{stats:{mind:4}},'你没有匆忙站队，但记住了事情的来路。'),
   ]);
   if(beat==='dispute'){
-    const opening=(g.flags.includes(flag(region,'help'))?'你曾帮助'+person+'查过旧事。':
-      g.flags.includes(flag(region,'business'))?'当地另一方记得你接受过邀约。':'你此前并未站队。')+local.dispute;
+    const opening=(g.flags.includes(flag(region,'help'))?person+'这次直接来找你。':
+      g.flags.includes(flag(region,'business'))?'上次与你做生意的人又托人递了信。':'两边都来问过你的想法。')+local.dispute;
     const choices:Record<RegionId,Choice[]>={
       qinglan:[
         choice(region,'protect','留下修泉，让村民先有水喝',{stats:{health:-12,reputation:7},...relation},'泉口没有立刻复原，但村里终于能取到干净的水。'),
@@ -141,19 +141,19 @@ export function getRegionalEvent(g:Game,id:string):EventDef|undefined {
         choice(region,'patron','接受秦氏赞助，暂缓公开名录',{stones:48,stats:{reputation:-7}},'你得到资助，名册仍锁在藏书楼。'),
       ],
     };
-    return result(base,nameOf(region)+' · 分歧之时',opening,choices[region],local.family+'的旧事与你曾在这里做过的事相连。');
+    return result(base,nameOf(region)+' · 分歧之时',opening,choices[region]);
   }
   if(beat==='apprentice') {
-    const available=SECTS.filter(s=>s.home===region&&s.minRealm<=g.realm&&regionalStanding(g,region).strength>=20).slice(0,2);
+    const available=SECTS.filter(s=>s.home===region&&s.minRealm<=g.realm&&regionalStanding(g,region).strength>=20);
     if(g.sect||!available.length) return;
     const choices=available.map(s=>choice(region,'join:'+s.id,'跟随'+s.name+'的传功人学艺',{},'引荐人替你作保，山门愿意收你。'));
     choices.push(choice(region,'free','暂不入门，仍以散修身份生活',{},'你谢过引荐，继续走自己的路。'));
-    return result(base,'师承来信',local.family+'的风波过后，'+person+'送来引荐。有人认可你此前的行事，愿意承担入门资用；也有人认为师门不该替一个人规定全部生活。',choices);
+    return result(base,'有人愿意引你入门',person+'带来几张门中名帖，说有人愿替你作保。去的话可以进门修习，不去也无妨。',choices);
   }
   if(beat==='journey'){
     const destinations=local.destinations.map(dest=>choice(region,'travel:'+dest,'随同行者前往'+nameOf(dest),{},'你与同行者穿过山海。来到'+nameOf(dest)+'后，遇上的已是另一片土地的人与事。'));
     destinations.push(choice(region,'stay','留在原地，继续这里的生活',{},'你送走了远行的人。这里仍有未尽的事。'));
-    return result(base,nameOf(region)+' · 去往别处的路',local.invitation+'他们有自己的目的，并不会替你决定今后在哪一洲生活。',destinations);
+    return result(base,nameOf(region)+' · 去往别处的路',local.invitation,destinations);
   }
   const remote=g.region!==region;
   const consequence=g.flags.includes(flag(region,'protect'))?'当年被你护住的人还在此生活。':
@@ -182,6 +182,7 @@ export function recordRegionalChoice(g:Game,event:EventDef,selected:Choice,hooks
     const sect=SECTS.find(s=>s.id===action.slice(5));
     if(sect&&!g.sect&&g.realm>=sect.minRealm&&regionalStanding(g,region).strength>=20){
       g.sect=sect.id;g.sectRank=0;g.contribution=0;
+      g.flags.push('sect-joined:'+sect.id+':'+g.age);
       hooks.log(g,'有了师承',(person?.name??'当地修士')+'替你作保，'+sect.name+'收你为外门弟子；引荐人承担本次入门资用。','relationship',true);
     }
   }

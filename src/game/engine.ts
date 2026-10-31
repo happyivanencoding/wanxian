@@ -4,6 +4,7 @@ import { FAMILIES, advanceHistory, historyConditions, initializeHistory, nextHis
 import { advanceCultivation, cultivationFlow, cultivationInsight } from './cultivation.ts';
 import { bindRegionalEvent, getRegionalEvent, nextRegionalEvent, recordRegionalChoice, regionalYear } from './regional.ts';
 import { getVentureEvent, nextVentureEvent, recordVentureChoice } from './venture.ts';
+import { advanceSectStanding, bindSectLifeEvent, getSectLifeEvent, nextSectLifeEvent, recordSectLifeChoice } from './sect-life.ts';
 import { bindRelationshipEvent, getRelationshipEvent, growRelationships, nextRelationshipEvent, recordRelationshipChoice } from './relationships.ts';
 import { gearTier } from './data.ts';
 import { fateInfluence } from './fate.ts';
@@ -188,6 +189,8 @@ export function getEvent(g: Game, id: string | null = g.pending): EventDef | und
   if (!id) return;
   const relationship = getRelationshipEvent(g, id);
   if (relationship) return relationship;
+  const sectLife = getSectLifeEvent(g, id);
+  if (sectLife) return sectLife;
   const regional = getRegionalEvent(g, id);
   if (regional) return regional;
   const venture = getVentureEvent(g, id);
@@ -220,6 +223,7 @@ export function requiresPlayerChoice(g: Game): boolean {
 function openEvent(g: Game, id: string) {
   bindRelationshipEvent(g, id, { random, log, gain });
   bindRegionalEvent(g, id, { random, log, gain });
+  bindSectLifeEvent(g, id, { random, log, gain });
   bindLifeEvent(g, id);
   if (id === 'wounded-friend' && !g.flags.some(flag => flag.startsWith('wounded-person:'))) {
     const person = g.npcs.find(npc => npc.alive && !['rival', 'enemy'].includes(npc.role)) ?? g.npcs.find(npc => npc.alive);
@@ -241,6 +245,8 @@ function selectEvent(g: Game, director?: DirectorControl) {
   if (personal === 'life-heaven') { openEvent(g, personal); return; }
   const historical = nextHistoryEvent(g);
   if (historical && g.age - lastManual >= 6) { openEvent(g, historical); return; }
+  const sectLife = nextSectLifeEvent(g);
+  if (sectLife && g.age - lastManual >= 6) { openEvent(g, sectLife); return; }
   const regional = nextRegionalEvent(g);
   if (regional && (g.age - lastManual >= 6 || (regional.endsWith('-arrival') && g.visited.length > 1))) { openEvent(g, regional); return; }
   const venture = nextVentureEvent(g, random(g));
@@ -330,12 +336,13 @@ function resolveChoice(g: Game, index: number, automatic = false): string | null
     recordStoryChoice(g, event, choice);
     recordHistoryChoice(g, event, choice);
     recordRegionalChoice(g, event, choice, { random, log, gain });
+    recordSectLifeChoice(g, event, choice, { random, log, gain });
   }
   const fatalConflict = recordRelationshipChoice(g, event, choice, success, { random, log, gain });
   if (!automatic) g.choices++;
   g.pending = null;
   if (success) recordVentureChoice(g, event, choice, { random, log, gain, checkLife });
-  log(g, event.title, `${event.cause ? event.cause + ' ' : ''}${automatic ? '岁月中自然发生：' : ''}${choice.label}。${success ? choice.successText || choice.hint : choice.failureText || '未能如愿，但这段经历仍留在你的生命里。'}${choiceChanges(before, g)}`, event.category, !automatic || event.id.startsWith('story-'));
+  log(g, event.title, `${event.cause ? event.cause + ' ' : ''}${automatic ? '岁月中自然发生：' : ''}${choice.label}。${success ? choice.successText ?? '' : choice.failureText ?? '没有办成。'}${choiceChanges(before, g) ? `\n${choiceChanges(before, g)}` : ''}`, event.category, !automatic || event.id.startsWith('story-') || event.id.startsWith('sect-life-'));
   if (success && choice.delayed) { const { after, ...later } = choice.delayed; g.delayed.push({ at: g.age + after, ...later }); }
   g.pending = null;
   if (fatalConflict) finish(g, '旧怨中陨落', fatalConflict);
@@ -411,6 +418,7 @@ function advanceOne(g: Game, director?: DirectorControl) {
       }
       if (g.sect) {
         gain(g, sectAnnualEffect(g));
+        advanceSectStanding(g, { random, log, gain });
       }
       if (g.home.garden) gain(g, { item: 'herb', amount: g.home.garden + (g.region === 'river' ? 1 : 0) + (worldPhase(g).name === '百草丰年' ? 1 : 0) });
       if (g.home.library) gain(g, { stats: { insight: g.home.library * (g.focus === 'study' ? 0.8 : 0.4) } });
@@ -571,6 +579,7 @@ function perform(g: Game, action: Action, director?: DirectorControl): string | 
     if (!sect) return '没有这个宗门';
     const reason = sectEntryReason(g, sect.id); if (reason) return reason;
     g.stones -= sect.entryCost; g.sect = sect.id; g.sectRank = 0; g.contribution = 0;
+    g.flags.push(`sect-joined:${sect.id}:${g.age}`);
     log(g, '拜入山门', `你成为${sect.name}的外门弟子。${sect.bonus}。`, 'relationship', true);
   } else if (action.type === 'sect') {
     if (!g.sect) return '你尚未加入宗门';

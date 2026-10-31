@@ -1,5 +1,6 @@
 import { REGIONS } from './data.ts';
 import type { Choice, Effect, EventDef, Game, LogKind, WorldFaction, WorldHistory } from './types.ts';
+import { SECTS } from './data.ts';
 
 export const FACTIONS: { id: WorldFaction; name: string; region: string; aim: string }[] = [
   { id: 'sword', name: '青岚剑盟', region: 'qinglan', aim: '寻回照夜剑传，守住西岸山门' },
@@ -33,6 +34,56 @@ export const HISTORY_CHAPTERS: HistoryChapter[] = [
   { id: 'heaven-light', title: '天门重光', start: 3980, end: 4190, region: 'central', sides: ['jade', 'star'], tier: 5, object: '重建的登天石阶', prize: 'jade', opening: '五洲散落的航图终于能拼起一条路。玉京与玄朔各自重建登天石阶，成功者已经出现，通路仍远未稳定。', scene: '旧院最后一段石阶在夜里亮起。你经历过的争夺与身上留下的旧物，已经成为后来者眼里的历史。谁能走上去，并没有统一答案。' },
   { id: 'after-us', title: '后来者之世', start: 4420, end: 4670, region: 'river', sides: ['tide', 'ember'], tier: 5, object: '下一代的渡海路', prize: 'jade', opening: '新的一代不再把天门当作传说。水盟与烬原的后人仍在争夺远海，故事不会因为某位长者已经老去而停止。', scene: '年轻人带来一幅与你记忆不同的地图。他们想走自己的路，也想听见你真实经历过的那一页，而不是石碑上已经写好的评语。' },
 ];
+const historyActions: Record<string, [string, string][]> = {
+  'night-tide': [
+    ['替剑盟看守泉下引灯台', '你同守台的剑修留在泉口。船队没有拿走那片断玉。'],
+    ['帮沧溟船队把引灯台运走', '你替船队卸开旧阵，一段泉底石台被送上了船。'],
+  ],
+  'seven-bridges': [
+    ['跟归潮号的水手去试航', '你帮船员补齐了那处海图缺口。归潮号按时离港。'],
+    ['把船图送去玉京的买家', '你带着图纸去了玉京驿馆，买家答应保留船坞的署名。'],
+  ],
+  'sword-tomb': [
+    ['陪程家守住旧碑和署名', '你同北溟守阵人封住了碑前的裂缝，拓本留在了雪原。'],
+    ['替青岚剑修接走剑胎', '剑胎被南来的剑修护送出冢。留下的人仍不认可它的归属。'],
+  ],
+  'red-sun': [
+    ['帮燕氏把赤乌枪送回迁徙营地', '你随燕氏穿过了沉砂旧城。那柄枪被交还给守旗的人。'],
+    ['替玉京使者核对祖器归属', '你将旧账带往玉京，议庭要继续核对那把枪的来历。'],
+  ],
+  'jade-schism': [
+    ['按议庭的安排核对登阶名册', '你随书记官把册子重新抄过一遍，旧席位暂时没有变动。'],
+    ['陪北溟来客找被删去的名字', '你把残碑上的名字逐一对照，几处被涂去的地方被发现了。'],
+  ],
+  'sea-raft': [
+    ['替水盟先把浮槎停稳', '水盟按你找到的落脚点系住浮槎，船上的人得以登岸。'],
+    ['帮烬原后人从旧渡台上岸', '你带烬原的人绕开水盟的封锁，石阶另一端因此有人值守。'],
+  ],
+  'river-duel': [
+    ['同青岚来客守住渡台旧路', '你沿渡台布好守路剑阵，后来赶到的人知道了这条路。'],
+    ['把问剑请帖带给玉京旧院', '你将请帖送上旧院，双方约定在渡台前论剑。'],
+  ],
+  'academy': [
+    ['帮玉京旧院整理流出的手抄本', '你和旧院的人抄录残卷，补齐了几处缺页。'],
+    ['陪水盟学徒将功法带回船上', '你把手抄本送给船上的学徒，他们要拿它教新来的孩子。'],
+  ],
+  'long-night': [
+    ['替玄朔观星者修一张远海星图', '北溟的星图重新校过一遍，出海的人带走了复本。'],
+    ['跟烬原后人护送夜航船', '你跟着船队穿过长夜关，途中有两条船先行返航。'],
+  ],
+  'new-houses': [
+    ['帮烬原的新山门守住第一道路', '你在山道口同新弟子守了一夜。第二天他们换上了自己的旗。'],
+    ['替青岚弟子守好旧日山门', '青岚的守山人认得你，仍请你帮他们看住那段旧路。'],
+  ],
+  'heaven-light': [
+    ['陪玉京修好登天石阶的护阵', '你帮玉京阵师把石阶上的断线重新接好。'],
+    ['和玄朔观测者核对星路', '玄朔的图上记下你见过的几处旧阶，众人重新标了方向。'],
+  ],
+  'after-us': [
+    ['带水盟的年轻人走一段海路', '你陪年轻船员走完一段不熟悉的水道，他们自己掌了最后一程舵。'],
+    ['把烬原后人的旧图校给他们', '你在新图上指出了一个已经消失的旧渡口，没有要求他们照旧走。'],
+  ],
+};
 export const HISTORY_EVENTS: EventDef[] = HISTORY_CHAPTERS.map(chapter => ({ id: `history-${chapter.id}`, title: chapter.title, text: '', category: 'world', kind: 'turning', once: true, weight: 0, choices: [] }));
 export const factionForRegion = (region: string) => FACTIONS.find(faction => faction.region === region)!.id;
 export const factionName = (id: WorldFaction | 'open') => id === 'open' ? '五洲散修与诸门' : FACTIONS.find(faction => faction.id === id)!.name;
@@ -123,12 +174,14 @@ export function getHistoryEvent(g: Game, id: string): EventDef | undefined {
   const base = HISTORY_EVENTS.find(event => event.id === id)!;
   const previous = [...HISTORY_CHAPTERS].reverse().find(entry => entry.start < chapter.start && g.history?.outcomes[entry.id]);
   const previousText = previous ? `自${previous.title}之后，${factionName(g.history!.outcomes[previous.id])}占据先机。` : '';
-  const footprint = g.sect ? '山门中的消息也催着你作出自己的打算。' : '散修也收到消息，但没有人替你决定立场。';
+  const school = SECTS.find(sect => sect.id === g.sect);
+  const footprint = school ? `${school.name}也收到了消息，几名同门正为这件事争论。` : '渡口张贴了各方的告示。';
   const mark = (side: string) => `history-choice:${chapter.id}:${side}`;
-  const choices: Choice[] = chapter.sides.map(side => ({
-    label: `支持${factionName(side)}`, hint: `${12 + g.realm * 8} 灵石`, cost: 12 + g.realm * 8,
+  const choices: Choice[] = chapter.sides.map((side, index) => ({
+    label: historyActions[chapter.id][index][0],
+    hint: `${12 + g.realm * 8} 灵石`, cost: 12 + g.realm * 8,
     effect: { flag: mark(side), stats: { reputation: 4 } }, autoScore: g.region === FACTIONS.find(f => f.id === side)!.region ? 7 : 4,
-    successText: `你把支持交给${factionName(side)}。局面尚未定，相关的人已经记下你的名字。`,
+    successText: historyActions[chapter.id][index][1],
   }));
   if (g.region === chapter.region && (g.realm >= chapter.tier || chapter.tier === 1)) choices.push({
     label: chapter.prize.startsWith('relic-') ? '留下旧物，自己寻找来历' : '取一份所得，不立盟约', hint: [g.realm < chapter.tier ? '体魄 −8' : '', chapter.tier >= 2 ? '夺取可能结仇，遭人追杀' : ''].filter(Boolean).join(' · '),
@@ -150,6 +203,13 @@ export function recordHistoryChoice(g: Game, event: EventDef, choice: Choice) {
   const relic = relevantRelic(g, chapter.id);
   const weight = Math.min(48, 8 + g.realm * 5 + g.sectRank * 2 + (relic ? 18 : 0));
   g.history!.choices[chapterId] = { side: side as WorldHistory['choices'][string]['side'], weight };
+  const school = SECTS.find(sect => sect.id === g.sect);
+  if (school && chapter.region === school.home) {
+    const local = factionForRegion(school.home);
+    if (side === local) g.contribution += 14;
+    else if (chapter.sides.includes(side as WorldFaction)) g.contribution = Math.max(0, g.contribution - 10);
+    else if (side === 'open') g.contribution += 4;
+  }
   if (side !== 'self' && side !== 'watch' && relic && !g.flags.includes(`relic-used:${relic}:${chapterId}`)) g.flags.push(`relic-used:${relic}:${chapterId}`);
 }
 

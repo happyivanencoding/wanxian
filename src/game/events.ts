@@ -6,6 +6,7 @@ import { RELATIONSHIP_EVENTS } from './relationships.ts';
 import { LIFE_EVENTS } from './lifelines.ts';
 import { REGIONAL_EVENTS } from './regional.ts';
 import { VENTURE_EVENTS } from './venture.ts';
+import { SECT_LIFE_EVENTS } from './sect-life.ts';
 const c = (label: string, hint: string, effect: Effect, extra: Partial<Choice> = {}): Choice => ({ label, hint, effect, autoScore: 5, ...extra });
 
 const stories: EventDef[] = [
@@ -159,6 +160,7 @@ export const EVENTS: EventDef[] = [
   ...RELATIONSHIP_EVENTS,
   ...REGIONAL_EVENTS,
   ...VENTURE_EVENTS,
+  ...SECT_LIFE_EVENTS,
 ];
 export const EVENT_MAP = Object.fromEntries(EVENTS.map(event => [event.id, event]));
 export const CHILD_EVENTS = new Map([[2, 'child-pebble'], [6, 'child-root'], [12, 'child-letter'], [16, 'departure'], [18, 'vow']]);

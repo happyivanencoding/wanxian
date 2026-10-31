@@ -115,3 +115,70 @@
 
 :root .app-shell.continuous-life.in-game .topbar { position: sticky; top: 0; z-index: 30; min-height: 52px; height: 52px; background: var(--pixel-panel); }
 :root .app-shell.continuous-life.in-game .global-status { top: 52px; }
+
+
+.continuous-life .sect-life-page { display: grid; gap: 12px; }
+.continuous-life .sect-life-heading { border-bottom: 1px solid var(--pixel-border); padding: 5px 0 13px; }
+.continuous-life .sect-life-heading h2 { font-size: 19px; line-height: 1.5; margin: 4px 0 8px; color: var(--ink); }
+.continuous-life .sect-life-heading > p { font-size: 12px; color: var(--muted); margin: 10px 0 0; }
+.continuous-life .sect-life-facts { display: flex; align-items: center; flex-wrap: wrap; gap: 7px 16px; font-size: 12px; color: var(--pixel-gold); }
+.continuous-life .sect-mentor { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--pixel-border); }
+.continuous-life .sect-mentor > span { font-size: 13px; }
+.continuous-life .sect-mentor > small { font-size: 11px; color: var(--muted); margin-left: auto; }
+.continuous-life .sect-life-chronicle h3 { font-size: 13px; color: var(--muted); margin: 0; }
+.continuous-life .sect-life-chronicle .log-row { padding-block: 10px; }
+.continuous-life .sect-learned { color: var(--pixel-jade); font-size: 12px; }
+.continuous-life .sect-school-index > summary, .continuous-life .sect-life-manual > summary,
+.continuous-life .sect-leave > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--pixel-gold); font-size: 12px; }
+.continuous-life .sect-school-index section { padding: 6px 0 10px; }
+.continuous-life .sect-school-index section h3 { font-size: 13px; }
+.continuous-life .sect-school-index section p { font-size: 12px; color: var(--muted); }
+.continuous-life .sect-life-manual { border-top: 1px solid var(--pixel-border); margin-top: 10px; }
+.continuous-life .sect-manual-actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+.continuous-life .sect-manual-actions .button { min-height: 44px; font-size: 12px; }
+.continuous-life .sect-leave { margin-top: 12px; }
+
+/* Life outcomes remain readable without repeating reward text in the story. */
+.continuous-life .log-changes { display: flex; flex-wrap: wrap; gap: 5px 10px; margin-top: 7px; font-size: 12px; line-height: 1.5; }
+.continuous-life .log-change { font-variant-numeric: tabular-nums; font-weight: 600; }
+.continuous-life .log-change.gain, .continuous-life .log-value.gain { color: var(--pixel-jade); }
+.continuous-life .log-change.loss, .continuous-life .log-value.loss { color: var(--red); }
+.continuous-life .log-change.neutral { color: var(--pixel-gold); }
+.continuous-life .log-value { font-weight: 600; }
+.continuous-life .life-now-tools { display: flex; align-items: center; gap: 6px; }
+.continuous-life .life-sect-trigger { display: flex; gap: 4px; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; color: var(--pixel-gold); border: 1px solid var(--pixel-border); background: var(--pixel-panel); }
+.continuous-life .life-sect-trigger span { font-size: 11px; }
+.continuous-life .event-backstory { margin: 4px 0 11px; font-size: 12px; line-height: 1.6; color: var(--muted); }
+.continuous-life .life-people-trigger { display: flex; gap: 4px; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; color: var(--pixel-jade); border: 1px solid var(--pixel-border); background: var(--pixel-panel); }
+.continuous-life .life-people-trigger span { font-size: 11px; }
+.continuous-life .life-people-dialog { display: grid; gap: 3px; }
+.continuous-life .life-people-entry { display: flex; align-items: center; gap: 12px; width: 100%; padding: 7px 9px; text-align: left; border-bottom: 1px solid var(--pixel-border); min-height: 58px; color: var(--ink); }
+.continuous-life .life-people-entry > .pixel-portrait { width: 40px; height: 40px; flex: 0 0 40px; }
+.continuous-life .life-people-entry > span { display: grid; flex: 1; min-width: 0; gap: 2px; }
+.continuous-life .life-people-entry strong { font-size: 13px; }
+.continuous-life .life-people-entry small { font-size: 11px; color: var(--muted); }
+.continuous-life .life-people-entry .person-memory-mark { position: static; }
+.continuous-life .life-people-entry > svg { color: var(--pixel-gold); }
+.continuous-life .life-people-entry:hover { background: var(--pixel-panel-raised); }
+.continuous-life .person-story-header { display: flex; align-items: center; gap: 12px; margin-block: 12px; }
+.continuous-life .person-story-header .pixel-portrait { width: 50px; height: 50px; }
+.continuous-life .person-story-header > div { display: grid; gap: 3px; }
+.continuous-life .person-story-header strong { font-size: 16px; }
+.continuous-life .person-story-header small { font-size: 12px; color: var(--muted); }
+
+@media (max-width: 680px) {
+  :root .app-shell.continuous-life.in-game .time-dock:has(> .year-clock) {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 7px 10px max(8px, env(safe-area-inset-bottom));
+    box-sizing: border-box;
+  }
+  :root .app-shell.continuous-life.in-game .page-content {
+    padding-bottom: calc(120px + env(safe-area-inset-bottom));
+  }
+  :root .app-shell.continuous-life.in-game .toast {
+    bottom: calc(90px + env(safe-area-inset-bottom));
+  }
+}

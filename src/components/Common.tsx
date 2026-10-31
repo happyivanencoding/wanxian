@@ -45,8 +45,32 @@ export function Empty({ icon = 'book', title, children }: { icon?: string; title
 }
 export function Notice({ children, kind = '' }: { children: ReactNode; kind?: string }) { return <div className={`notice ${kind}`}><Icon name={kind === 'danger' ? 'shield' : 'leaf'} size={18}/><div>{children}</div></div>; }
 export const kindLabels: Record<string, string> = { life: '浮生', cultivation: '修行', encounter: '机缘', world: '山河', relationship: '同道', economy: '营生', ending: '结卷' };
+const changeToken = /(宗门贡献|修为|悟性|道心|根基|战技|体魄|声望|丹术|灵石|情谊|资质|寿元)\s*([+＋−-])\s*(\d+(?:\.\d+)?)/g;
+function coloredProse(content: string) {
+  const parts: ReactNode[] = [];
+  let last = 0;
+  for (const match of content.matchAll(changeToken)) {
+    const at = match.index ?? 0;
+    if (at > last) parts.push(content.slice(last, at));
+    parts.push(<span key={at} className={'log-value ' + (match[2] === '+' || match[2] === '＋' ? 'gain' : 'loss')}>{match[0]}</span>);
+    last = at + match[0].length;
+  }
+  if (last < content.length) parts.push(content.slice(last));
+  return parts;
+}
+export function LogText({ text }: { text: string }) {
+  const marker = '本次变化：', index = text.indexOf(marker);
+  if (index < 0) return <>{coloredProse(text)}</>;
+  const description = text.slice(0, index).trim();
+  const changes = text.slice(index + marker.length).replace(/。$/, '').split('，').filter(Boolean);
+  return <>{description && <span>{coloredProse(description)}</span>}
+    <span className="log-changes" aria-label="实际变化">{changes.map((change, i) => {
+      const gain = /[+＋]\s*\d/.test(change), loss = /[−-]\s*\d/.test(change);
+      return <span key={i} className={'log-change ' + (gain ? 'gain' : loss ? 'loss' : 'neutral')}>{change}</span>;
+    })}</span></>;
+}
 export function LogRow({ entry, onStar }: { entry: Log; onStar?: () => void }) {
-  return <article className={`log-row ${entry.important ? 'important' : ''}`}><div className="log-age"><strong>{entry.age}</strong><small>岁</small></div><div className="log-content"><div><span className={`log-kind kind-${entry.kind}`}>{kindLabels[entry.kind]}</span><h4>{entry.title}</h4></div><p>{entry.text}</p></div>{onStar && <button className={`icon-button star-button ${entry.starred ? 'starred' : ''}`} onClick={onStar} aria-label={entry.starred ? '取消收藏记录' : '收藏记录'} aria-pressed={Boolean(entry.starred)}><Icon name="star" size={15}/></button>}</article>;
+  return <article className={`log-row ${entry.important ? 'important' : ''}`}><div className="log-age"><strong>{entry.age}</strong><small>岁</small></div><div className="log-content"><div><span className={`log-kind kind-${entry.kind}`}>{kindLabels[entry.kind]}</span><h4>{entry.title}</h4></div><p><LogText text={entry.text}/></p></div>{onStar && <button className={`icon-button star-button ${entry.starred ? 'starred' : ''}`} onClick={onStar} aria-label={entry.starred ? '取消收藏记录' : '收藏记录'} aria-pressed={Boolean(entry.starred)}><Icon name="star" size={15}/></button>}</article>;
 }
 export function downloadText(text: string, filename: string, type = 'text/plain;charset=utf-8') {
   const blob = new Blob([text], { type });

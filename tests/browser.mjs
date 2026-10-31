@@ -136,7 +136,15 @@ try {
     await check('A current v2 life retains the people actually known in this run', async () => {
       const known = fixture();
       await install(page, known); assert.deepEqual((await state(page)).game.npcs, known.game.npcs);
-      assert.equal(await page.locator('.life-people-row > button').count(), 4);
+      assert.equal(await page.getByTestId('life-people-open').count(), 1);
+      assert.equal(await page.locator('.life-people-row').count(), 0);
+      await page.getByTestId('life-people-open').click();
+      assert.equal(await page.locator('.life-people-entry').count(), 4);
+      await page.getByTestId('life-person-peer-1').click();
+      assert.match(await page.getByRole('dialog').last().innerText(), /苏青禾/);
+      await page.getByTestId('person-return').click();
+      assert.equal(await page.locator('.life-people-entry').count(), 4);
+      await close(page);
     });
     await check('Choices conceal numeric rewards until the result is recorded in the life log', async () => {
       const p = fixture(); p.game.pending = 'child-root'; p.game.seen['child-root'] = 6;
@@ -147,6 +155,8 @@ try {
       const after = (await changed(page, s => s.game.pending === null)).game;
       assert.match(after.logs.at(-1).text, /本次变化：/);
       assert.match(after.logs.at(-1).text, /修为/);
+      assert.doesNotMatch(after.logs.at(-1).text, /修为 \+10.*修为 \+10/s);
+      assert.ok(await page.locator('.life-now .log-change.gain').count() > 0);
     });
     await check('One action drawer exposes all tools without replacing the main life scene', async () => {
       await install(page); await page.evaluate(() => { window.lifeScene = document.querySelector('[data-testid="cultivation-home"]'); });
@@ -221,14 +231,43 @@ try {
       await changed(page, s => s.game.inventory.herb === herbs - 3 && s.game.actionsLeft === 0);
       assert.ok(await page.getByTestId('action-drawer').isVisible());
     });
+    await check('Sect work arrives as a story and changes contribution without opening management', async () => {
+      const profile = fixture();
+      Object.assign(profile.game, { sect: 'herb', region: 'river', contribution: 7, pending: 'sect-life-herb-errand' });
+      profile.game.seen['sect-life-herb-errand'] = profile.game.age;
+      await install(page, profile);
+      const scene = await page.getByRole('dialog').last().innerText();
+      assert.match(scene, /药草|病人|药材/);
+      assert.doesNotMatch(await page.getByTestId('event-choice-0').innerText(), /贡献 [+＋]/);
+      await page.getByTestId('event-choice-0').click();
+      const stateAfter = await changed(page, state => state.game.pending === null && state.game.contribution > 7);
+      assert.ok(stateAfter.game.logs.some(entry => entry.title.includes('百草谷') && entry.text.includes('本次变化：')));
+      assert.ok(await page.locator('.life-now .log-change.gain').count() > 0);
+      await page.getByTestId('life-sect-open').click();
+      assert.ok(Number(await page.getByTestId('sect-contribution').innerText()) > 7);
+      await close(page);
+    });
+    await check('A sect disagreement records both positive and negative outcomes with separate colors', async () => {
+      const profile = fixture();
+      Object.assign(profile.game, { sect: 'herb', region: 'river', contribution: 18, pending: 'sect-life-herb-division' });
+      profile.game.seen['sect-life-herb-division'] = profile.game.age;
+      await install(page, profile);
+      const before = (await state(page)).game;
+      await page.getByTestId('event-choice-1').click();
+      const next = (await changed(page, state => state.game.pending === null)).game;
+      assert.ok(next.stats.mind < before.stats.mind && next.contribution > before.contribution);
+      assert.ok(await page.locator('.life-now .log-change.gain').count() > 0);
+      assert.ok(await page.locator('.life-now .log-change.loss').count() > 0);
+    });
     await check('Sect entry and missions change membership and contributions', async () => {
       const story = fixture(); story.game.pending = 'region-qinglan-apprentice'; story.game.seen['region-qinglan-arrival'] = 18; story.game.seen['region-qinglan-dispute'] = 24;
       await install(page, story); await page.getByTestId('event-choice-0').click(); await changed(page, s => s.game.sect === 'qinglan'); await nav(page, 'sect');
+      await page.getByTestId('sect-manual').locator('summary').first().click();
       await page.getByTestId('sect-mission').click(); await changed(page, s => s.game.contribution === 22);
     });
     await check('A learned sect art grants its equipment once and returns from the reveal to the same drawer', async () => {
       const p = fixture(); p.game.sect = 'herb'; p.game.region = 'river'; p.game.contribution = 80;
-      await install(page, p); await nav(page, 'sect'); await page.getByTestId('learn-specialty').click();
+      await install(page, p); await nav(page, 'sect'); await page.getByTestId('sect-manual').locator('summary').first().click(); await page.getByTestId('learn-specialty').click();
       await page.getByTestId('attainment-reveal').waitFor(); await close(page);
       assert.ok(await page.getByTestId('learn-specialty').isDisabled());
       const g = (await state(page)).game; assert.equal(g.inventory['sect-satchel'], 1); assert.equal(g.equipped, 'sect-satchel');
@@ -281,7 +320,7 @@ try {
     await check('Historical faction decline changes the displayed sect allowance, not just flavor text', async () => {
       const p = fixture(); p.game.sect = 'qinglan'; p.game.history.strength.sword = 10;
       await install(page, p); await nav(page, 'sect'); assert.match(await page.getByTestId('sect-allowance').innerText(), /0/);
-      assert.match(await page.locator('.sect-hero').innerText(), /闭山/);
+      assert.match(await page.locator('.sect-life-heading').innerText(), /闭山/);
     });
     await check('A known enemy has no gift/friend buttons and actual equipment is displayed', async () => {
       const p = fatalProfile(); p.game.pending = null;
@@ -340,6 +379,14 @@ try {
       await noOverflow(page, `${theme} ${width} life`); await shot(page, `${theme}-${width}-life`);
       const progress = await page.getByTestId('breakthrough-open').boundingBox(), dock = await page.locator('.time-dock').boundingBox();
       assert.ok(progress.y + progress.height < dock.y); assert.ok(progress.height >= 43.5);
+      if (width <= 640) {
+        const before = await page.evaluate(() => ({bottom: document.querySelector('.time-dock').getBoundingClientRect().bottom, height: innerHeight, style: getComputedStyle(document.querySelector('.time-dock')).bottom}));
+        assert.ok(Math.abs(before.bottom - before.height) <= 1 && before.style === '0px', JSON.stringify(before));
+        await page.evaluate(() => scrollTo(0, 700));
+        const scrolled = await page.evaluate(() => document.querySelector('.time-dock').getBoundingClientRect().bottom);
+        assert.ok(Math.abs(scrolled - before.height) <= 1, 'Year dock must remain pinned while scrolling');
+        await page.evaluate(() => scrollTo(0, 0));
+      }
       for (const section of sections) {
         await nav(page, section); await noOverflow(page, `${theme} ${width} ${section}`);
         assert.ok((await page.locator(`[data-section="${section}"] .drawer-section-body`).innerText()).length > 0);

@@ -1,15 +1,16 @@
 import WorldHistory from '../components/WorldHistory.tsx';
 import { regionalStanding } from '../game/history.ts';
 import { useState } from 'react';
-import { HOMES, ITEMS, REALMS, REGIONS, SECTS, SECT_RANKS, STAT_NAMES } from '../game/data.ts';
+import { HOMES, REALMS, REGIONS, SECTS, SECT_RANKS } from '../game/data.ts';
 import { currentEra, currentRegion, homePrice, travelPrice, worldPhase } from '../game/engine.ts';
 import { sectSpecialty } from '../game/progression.ts';
-import { sectAnnualEffect, sectMissionEffect } from '../game/sects.ts';
+import { sectAnnualEffect } from '../game/sects.ts';
+import { sectLifeSnapshot } from '../game/sect-life.ts';
 import { regionWorld } from '../game/world.ts';
 import { Icon, MountainScene } from '../components/Art.tsx';
 import { PixelScene, PixelSprite } from '../components/PixelArt.tsx';
-import { Notice, SectionTitle, numberText, type PageProps } from '../components/Common.tsx';
-import type { Game, Stat } from '../game/types.ts';
+import { LogRow, SectionTitle, numberText, type PageProps } from '../components/Common.tsx';
+import type { Game } from '../game/types.ts';
 const locked = (g: Game) => !g.alive || Boolean(g.pending) || Boolean(g.expeditions?.active) || g.age < 16 || g.actionsLeft < 1;
 function ActionNote({ game: g }: { game: Game }) {
   return g.pending ? <p className="quiet">先回应眼前的抉择。</p> : g.age < 16 ? <p className="quiet">十六岁后可独自行事。</p> : g.actionsLeft === 0 ? <p className="quiet">今年的行动已用尽。</p> : null;
@@ -26,32 +27,50 @@ export function WorldPage({ game: g, act }: PageProps) {
 }
 export function SectPage({ game: g, act }: PageProps) {
   const [confirmLeave, setConfirmLeave] = useState(false);
-  const [selectedRegion, setSelectedRegion] = useState(g.region);
-  const sect = SECTS.find(s => s.id === g.sect), specialty = sectSpecialty(g);
-  const region = REGIONS.find(r => r.id === selectedRegion) ?? REGIONS[0];
-  const localSects = SECTS.filter(s => s.home === region.id);
-  const mission = sectMissionEffect(g), allowance = sectAnnualEffect(g).stones ?? 0;
-  const missionStats = Object.entries(mission.stats ?? {}).map(([key, amount]) => `${STAT_NAMES[key as Stat]} ${amount! > 0 ? '+' : ''}${amount}`).join(' · ');
-  const fare = travelPrice(g, region.id);
-  const arts = { sword: '剑道应阵', medicine: '辨药救援', formation: '识阵观息', ledger: '独自勘契', pathfinder: '独自寻路', body: '炼体承压' };
-  const directory = <section className="sect-directory" data-testid="sect-directory">
-    <div className="filter-chips sect-region-picker" aria-label="选择宗门地域">{REGIONS.map(r => <button key={r.id} className={region.id === r.id ? 'active' : ''} aria-pressed={region.id === r.id} onClick={() => setSelectedRegion(r.id)} data-testid={`sect-region-${r.id}`}>{r.symbol} · {r.name}{r.id === g.region ? '（当前）' : ''}</button>)}</div>
-    <div className="sect-local-intro"><div><h3>{regionWorld(region.id).continent}</h3><p>{localSects.length} 座山门</p></div>{region.id !== g.region && <button className="button" disabled={locked(g) || g.realm < region.minRealm || g.stones < fare} onClick={() => act({ type: 'travel', id: region.id })} data-testid="sect-travel">{g.realm < region.minRealm ? `${REALMS[region.minRealm].name}境可至` : `动身前往 · ${fare}灵石`}</button>}</div>
-    <div className="sect-local-list">{localSects.map(s => {
-      const owned = g.flags.includes(s.specialty.id);
-      return <article className="panel sect-compact-card" key={s.id} data-testid={`sect-card-${s.id}`}><details>
-        <summary className="sect-compact-summary"><span className="sect-compact-mark">{s.mark}</span><span className="sect-compact-name"><strong>{s.name}</strong><small>{s.style} · {s.bonus}</small></span></summary>
-        <div className="sect-compact-body"><p>{s.culture}</p><p><strong>日常修行</strong> {s.description} 当前基础年例{Math.round(s.allowance * regionalStanding(g, s.home).income)}灵石 · {regionalStanding(g, s.home).label}。</p><p><strong>{s.mission.name}</strong> {s.mission.description}</p><p><strong>{s.specialty.name} · {s.specialty.cost}贡献</strong> {s.specialty.description}</p><p><strong>{s.specialty.gear.name}</strong> {s.specialty.gear.description} 传授专长时授予，每世一件。</p><div className="identity-tags">{s.specialty.arts.map(art => <span key={art}>{arts[art]}</span>)}{owned && <span>已学会此门本领</span>}</div></div>
-      </details><div className="sect-entry-line"><span className={g.realm >= s.minRealm ? 'met' : ''}>{REALMS[s.minRealm].name}境</span><span className={g.stats.reputation >= s.reputation ? 'met' : ''}>{s.reputation}声望</span><span className={g.stones >= s.entryCost ? 'met' : ''}>{s.entryCost}灵石</span></div><div className="sect-directory-actions"><span className="quiet">师承将随经历出现</span></div></article>;
-    })}</div>
-  </section>;
-  return <div className="page-enter"><SectionTitle title="仙门与师承" aside={<span className="soft-badge">声望 {Math.round(g.stats.reputation)}</span>}/>
-    {sect ? <><section className="sect-hero panel"><div className="sect-banner-symbol">{sect.mark}</div><div><span className="eyebrow">{sect.style}</span><h1>{sect.name}</h1><p>{sect.description}</p><div className="identity-tags"><span>{SECT_RANKS[g.sectRank]}</span><i/><span data-testid="sect-allowance">年例 {allowance} 灵石</span><span>{regionalStanding(g, sect.home).label}</span><i/><span>{sect.bonus}</span></div><details><summary>门中行事</summary><p>{sect.culture}</p></details></div><div className="contribution-value"><small>宗门贡献</small><strong>{g.contribution}</strong></div></section>
-    {specialty && <section className="panel sect-specialty" data-testid="sect-specialty"><span className="eyebrow">此门所授 · 离宗后仍可保留</span><h2>{specialty.name}</h2><p>{specialty.description}</p><details><summary>{sect.specialty.gear.name} · 传授时授予一次</summary><p>{sect.specialty.gear.description} 与其他法宝共用一个装备位，出售后不补发。</p></details><button className="button primary" disabled={!specialty.available} onClick={() => act({ type: 'sect', job: 'learn' })} data-testid="learn-specialty">{specialty.owned ? '此生已经学会' : `求授专长 · ${specialty.cost} 贡献`}<Icon name={specialty.owned ? 'check' : 'book'} size={18}/></button>{!specialty.available && !specialty.owned && <small>{specialty.reason}</small>}</section>}
-    <div className="sect-ranks">{SECT_RANKS.map((rank, index) => <div key={rank} className={index <= g.sectRank ? 'achieved' : ''}><span>{['壹', '贰', '叁', '肆'][index]}</span><strong>{rank}</strong><small>{index === 0 ? '叩门入道' : `${[0, 60, 180, 450][index]}贡献 · ${REALMS[[0, 1, 2, 3][index]].name}境`}</small></div>)}</div>
-    <div className="three-card-grid"><section className="panel action-card"><Icon name="shield" size={28}/><h3>{sect.mission.name}</h3><p>{sect.mission.description}</p><div className="action-reward">贡献 +{mission.contribution} · 灵石 +{mission.stones}<small>{missionStats}{mission.item ? ` · ${ITEMS.find(item => item.id === mission.item)?.name} +${mission.amount ?? 1}` : ''}</small></div><button className="button full" disabled={locked(g)} onClick={() => act({ type: 'sect', job: 'mission' })} data-testid="sect-mission">接取委托 <Icon name="arrow" size={16}/></button></section><section className="panel action-card"><Icon name="book" size={28}/><h3>藏经阁参修</h3><div className="action-reward">修为 +{16 + g.realm * 6} · 根基 +5<small>消耗20贡献 · 悟性 +3</small></div><button className="button full" disabled={locked(g) || g.contribution < 20} onClick={() => act({ type: 'sect', job: 'study' })}>进入藏经阁 <Icon name="arrow" size={16}/></button></section><section className="panel action-card"><Icon name="spark" size={28}/><h3>请授新职</h3><div className="action-reward">{g.sectRank >= 3 ? '已为宗门传功长老' : `晋为${SECT_RANKS[g.sectRank + 1]}`}<small>{g.sectRank >= 3 ? '薪火相传，山门有幸' : `消耗${[60, 180, 450][g.sectRank]}贡献 · 需要${REALMS[[1, 2, 3][g.sectRank]].name}境`}</small></div><button className="button primary full" disabled={locked(g) || g.sectRank >= 3} onClick={() => act({ type: 'sect', job: 'promote' })}>申请晋升 <Icon name="arrow" size={16}/></button></section></div>
-    <div className="quiet-row"><p>离宗清空职位与贡献，保留已学本领及物品。</p><button className="text-button danger-text" disabled={locked(g)} onClick={() => { if (confirmLeave) { act({ type: 'sect', job: 'leave' }); setConfirmLeave(false); } else setConfirmLeave(true); }}>{confirmLeave ? '确认告别山门，清空贡献' : '告别此山'}</button>{confirmLeave && <button className="text-button" onClick={() => setConfirmLeave(false)}>暂且留下</button>}</div><details className="sect-other-schools"><summary>了解诸洲其他山门</summary>{directory}</details></> : <>{directory}</>}
-    <ActionNote game={g}/></div>;
+  const sect = SECTS.find(item => item.id === g.sect);
+  const record = sectLifeSnapshot(g);
+  const specialty = sectSpecialty(g);
+  const allowance = sectAnnualEffect(g).stones ?? 0;
+  if (!sect) return <div className="sect-life-page">
+    <SectionTitle title="师承"/>
+    <p className="quiet">目前在山野修行。往后若有相识的人引荐，便会遇见新的门路。</p>
+    <details className="sect-school-index"><summary>五洲山门</summary>
+      {REGIONS.map(region => <section key={region.id}><h3>{region.name}</h3>
+        <p>{SECTS.filter(item => item.home === region.id).map(item => item.name).join(' · ')}</p>
+      </section>)}
+    </details>
+  </div>;
+  return <div className="sect-life-page" data-testid="sect-life-page">
+    <header className="sect-life-heading">
+      <span className="eyebrow">{sect.style}</span>
+      <h2>{sect.name}</h2>
+      <div className="sect-life-facts"><span>{SECT_RANKS[g.sectRank]}</span><span>贡献 <strong data-testid="sect-contribution">{g.contribution}</strong></span><span data-testid="sect-allowance">年例 {allowance} 灵石</span><span>{regionalStanding(g, sect.home).label}</span></div>
+      <p>{sect.culture}</p>
+    </header>
+    {record?.mentor && <div className="sect-mentor">
+      <Icon name="people" size={17}/><span>{record.mentor.name}</span><small>{record.mentor.alive ? '门中传功人' : '故去的传功人'}</small>
+    </div>}
+    {record?.last.length ? <section className="sect-life-chronicle"><h3>门中近事</h3>
+      {record.last.map(entry => <LogRow key={entry.id} entry={entry}/>)}
+    </section> : null}
+    {g.flags.includes(sect.specialty.id) && <p className="sect-learned">已学会 {sect.specialty.name} · {sect.specialty.gear.name}</p>}
+    <details className="sect-life-manual" data-testid="sect-manual"><summary>自行处理门务</summary>
+      <div className="sect-manual-actions">
+        <button className="button" disabled={locked(g)} onClick={() => act({ type: 'sect', job: 'mission' })} data-testid="sect-mission">{sect.mission.name}</button>
+        <button className="button" disabled={locked(g) || g.contribution < 20} onClick={() => act({ type: 'sect', job: 'study' })}>去藏经阁参修</button>
+        <button className="button" disabled={locked(g) || g.sectRank >= 3} onClick={() => act({ type: 'sect', job: 'promote' })}>请授新职</button>
+        {specialty && <button className="button" disabled={!specialty.available} onClick={() => act({ type: 'sect', job: 'learn' })} data-testid="learn-specialty">{specialty.owned ? '已学会' : '请教师门所学'}</button>}
+      </div>
+      <details className="sect-leave"><summary>告别山门</summary>
+        <p className="quiet">离开后不再领取月例，职务和贡献会清零，已学的本领仍在。</p>
+        <button className="text-button danger-text" disabled={locked(g)} onClick={() => {
+          if (confirmLeave) { act({ type: 'sect', job: 'leave' }); setConfirmLeave(false); }
+          else setConfirmLeave(true);
+        }}>{confirmLeave ? '确定离开' : '离开师门'}</button>
+        {confirmLeave && <button className="text-button" onClick={() => setConfirmLeave(false)}>暂且留下</button>}
+      </details>
+    </details>
+  </div>;
 }
 export function HomePage({ game: g, act }: PageProps) {
   const levels = Object.values(g.home).reduce((a, b) => a + b, 0);

@@ -9,7 +9,7 @@ Independent Chinese single-player cultivation life simulator. This repository is
 - UI components must call engine actions instead of mutating simulation state directly.
 - All advertised buttons must work; unfinished functionality should not be presented as complete.
 - Core play is offline after local assets load, no external API or account required.
-- Preserve existing user saves. Use the explicit save version and reject invalid imports before changing active data.
+- This is a pre-release prototype: the current save schema is authoritative. Breaking gameplay changes may bump the save version and storage key; do not add migration code, legacy adapters, or old-save compatibility tests. A new release may start a new life. Always validate imports against the current schema before replacing active data.
 - Keep local ports consistent: http://localhost:5188. Do not add startup services or deploy a public website without authorization.
 - The sole GitHub repository for this game is https://github.com/happyivanencoding/wanxian (remote origin, branch main). The user authorized uploading this game's future verified development changes to this repository. After a meaningful change passes required tests, commit and push it to this origin; report its commit SHA and distinguish Git publishing from website deployment. Never force-push or overwrite remote changes blindly. Never publish secrets, save files or dependencies. Keep generated builds out of main; the authorized gh-pages release branch contains only the built static site.
 

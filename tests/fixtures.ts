@@ -1,6 +1,8 @@
 import { planDirectedAction } from '../src/game/engine.ts';
 import type { Game } from '../src/game/types.ts';
 import { HISTORY_EVENTS } from '../src/game/history.ts';
+import { REGIONAL_EVENTS } from '../src/game/regional.ts';
+import { VENTURE_EVENTS } from '../src/game/venture.ts';
 
 /** A pre-rework adult save: these four people were already part of its history. */
 export function withLegacyPeers(g: Game): Game {
@@ -17,7 +19,7 @@ export function withLegacyPeers(g: Game): Game {
 
 /** Isolate an ordinary-event boundary from already handled, higher-priority turns. */
 export function handledWorldTurns(g: Game) {
-  for (const event of HISTORY_EVENTS) g.seen[event.id] = 20;
+  for (const event of [...HISTORY_EVENTS, ...REGIONAL_EVENTS, ...VENTURE_EVENTS]) g.seen[event.id] = 20;
   for (const npc of g.npcs) npc.metAt = g.age;
   return g;
 }

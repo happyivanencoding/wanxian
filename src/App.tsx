@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Action, BirthConfig, DirectedAction, Game, Profile } from './game/types.ts';
-import { FOCUSES, REALMS, SECTS, STAT_NAMES } from './game/data.ts';
+import { FOCUSES, REALMS, SECTS } from './game/data.ts';
 import { act as engineAct, breakthroughChance, choiceUnavailable, commitDirectedAction, createGame, currentRegion, getEvent, planDirectedAction, realmName, requiresPlayerChoice } from './game/engine.ts';
 import { SAVE_KEY, loadProfile, newProfile, parseProfile, persistProfile, settleProfile } from './game/storage.ts';
 import { Icon, Seal } from './components/Art.tsx';
@@ -27,11 +27,18 @@ import { worldYear } from './game/history.ts';
 import './ContinuousLife.css';
 
 const NAV: { id: PageId; label: string; en: string; icon: string }[] = [
-  { id: 'journey', label: '人生', en: 'THIS MOMENT', icon: 'mountain' }, { id: 'practice', label: '修行', en: 'PRACTICE', icon: 'mountain' }, { id: 'opportunities', label: '机缘', en: 'OPPORTUNITIES', icon: 'spark' }, { id: 'world', label: '山河', en: 'THE WORLD', icon: 'compass' },
+  { id: 'journey', label: '人生', en: 'THIS MOMENT', icon: 'mountain' }, { id: 'practice', label: '修行', en: 'PRACTICE', icon: 'mountain' }, { id: 'world', label: '山河', en: 'THE WORLD', icon: 'compass' },
   { id: 'sect', label: '仙门', en: 'THE SECT', icon: 'shield' }, { id: 'home', label: '洞府', en: 'MY SANCTUARY', icon: 'home' },
   { id: 'inventory', label: '行囊', en: 'BELONGINGS', icon: 'bag' }, { id: 'people', label: '相识的人', en: 'COMPANIONS', icon: 'people' },
   { id: 'life', label: '此生', en: 'THIS LIFE', icon: 'leaf' }, { id: 'chronicle', label: '年谱', en: 'CHRONICLE', icon: 'book' }, { id: 'archives', label: '前尘', en: 'PAST LIVES', icon: 'rebirth' },
 ];
+function knownRisk(hint: string): string | null {
+  if (/陨落|致命|丧命|会死/.test(hint)) return '可能陨落';
+  if (/追杀|结仇/.test(hint)) return '可能结仇';
+  if (/极险|高险|重伤/.test(hint)) return '危险很高';
+  if (/受伤风险|损伤|受伤/.test(hint)) return '可能受伤';
+  return null;
+}
 type ModalName = 'birth' | 'save' | 'help' | 'breakthrough' | 'settings' | 'ending' | 'attainment' | null;
 function initialProfile() {
   try { return loadProfile(window.localStorage); }
@@ -45,8 +52,8 @@ export default function App() {
   const [warning, setWarning] = useState(initial.warning);
   const [saveError, setSaveError] = useState('');
   const [savedAt, setSavedAt] = useState('');
-  const [page, setPage] = useState<PageId>(initial.profile.game && expeditionView(initial.profile.game).active ? 'opportunities' : 'journey');
-  const [drawerOpen, setDrawerOpen] = useState(Boolean(initial.profile.game?.expeditions?.active));
+  const [page, setPage] = useState<PageId>('journey');
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const drawerResume = useRef(false), overlayResume = useRef(false), modalResume = useRef(false);
   const [modal, setModal] = useState<ModalName>(null);
   const [confirmation, setConfirmation] = useState<{ title: string; text: string; accept: string; action: () => void } | null>(null);
@@ -90,7 +97,7 @@ export default function App() {
       ? commitDirectedAction(current, action, decision) : plan.result;
     if (result.error) { if (action.type === 'advance' || action.type === 'auto') setRunning(false); setToast(result.error); if (current.pending) setEventOpen(true); return; }
     commitGame(result.game);
-    if (result.game.pending) setEventOpen(true);
+    if (result.game.pending || result.game.expeditions?.active && !current.expeditions?.active) setEventOpen(true);
     if (!['advance', 'auto', 'focus', 'direction', 'star', 'choose', 'prepare'].includes(action.type) && !action.type.startsWith('expedition-')) setToast(result.game.logs.at(-1)?.title || '已完成');
   }, [commitGame]);
   const apply = useCallback((action: Action) => { runAction(action); }, [runAction]);
@@ -205,14 +212,14 @@ export default function App() {
   return <div className={`app-shell continuous-life ${game ? 'in-game' : 'at-home'}`}>
     <div className="app-main"><header className="topbar">{game ? <div className="breadcrumb"><strong>万仙之一</strong></div> : <button className="brand" onClick={() => setPage('journey')}><span className="brand-mark">仙</span><span><strong>万仙之一</strong><small>浮 生 问 道</small></span></button>}<div className="topbar-actions">{game && <button className="button actions-trigger" onClick={openActions} data-testid="open-actions" aria-expanded={drawerOpen}><Icon name="bag" size={18}/><span>行事</span><small>{game.actionsLeft}</small></button>}<span className={`save-status ${saveError || !canSave ? 'warning' : ''}`} title={saveError || (savedAt ? '上次保存 ' + savedAt : '自动保存已就绪')}><span className="live-dot"/>{saveError || !canSave ? '请导出备份' : '此生有迹'}</span><button className="icon-button compact-settings" aria-label="偏好设置" title="偏好设置与玩法说明" onClick={() => openModal('settings')} data-testid="open-settings"><Icon name="settings" size={18}/></button><button className="icon-button theme-shortcut" aria-label={profile.settings.theme === 'light' ? '切换夜间模式' : '切换青岚配色'} title="切换明暗主题" onClick={() => changeSetting('theme', profile.settings.theme === 'light' ? 'dark' : 'light')} data-testid="theme-toggle"><Icon name={profile.settings.theme === 'light' ? 'moon' : 'sun'}/></button><button className="button save-button" onClick={() => openModal('save')} data-testid="open-save"><Icon name="save" size={17}/><span>存档</span></button></div></header>
     {game && <GlobalStatus game={game}/>}
-    {expedition && page !== 'opportunities' && <button className="expedition-resume" onClick={() => navigate('opportunities')} data-testid="expedition-resume"><Icon name="compass" size={19}/><span>你还在「{expedition.title}」之中 · 返回继续</span><Icon name="arrow" size={17}/></button>}
+    {expedition && !eventOpen && <button className="expedition-resume" onClick={() => setEventOpen(true)} data-testid="expedition-resume"><Icon name="compass" size={19}/><span>你还在「{expedition.title}」之中 · 返回继续</span><Icon name="arrow" size={17}/></button>}
     {(warning || saveError) && <div className="global-warning" role="alert"><span>{saveError || warning}</span><button onClick={() => openModal('save')}>打开存档</button>{!saveError && canSave && <button onClick={() => setWarning('')} aria-label="关闭提示">×</button>}</div>}
     <main className={game ? 'page-content is-journey' : 'landing-content'}>{game ? pageViews?.journey : <Landing onStart={newLife} onHelp={() => openModal('help')}/>}</main>
     {game && <footer className={`time-dock ${expedition ? 'expedition-time-dock' : ''}`}>
-      {expedition && <button className="expedition-time-note" onClick={() => navigate('opportunities')}><Icon name="clock" size={16}/><span>此刻身在机缘中 · 光阴暂驻</span><Icon name="arrow" size={15}/></button>}
+      {expedition && <button className="expedition-time-note" onClick={() => setEventOpen(true)}><Icon name="clock" size={16}/><span>此刻身在机缘中 · 光阴暂驻</span><Icon name="arrow" size={15}/></button>}
       <YearClock active={Boolean(running && !drawerOpen && page === 'journey' && game.alive && !game.pending && !expedition && !modal && !confirmation)} age={game.age} lifeId={game.id} durationMinutes={profile.settings.durationMinutes} speed={profile.settings.speed} onYear={onYearElapsed}/>
       <div className="dock-life"><span className="live-dot"/><div><strong>{game.alive ? expedition ? '身在机缘中' : game.pending ? '抉择未定' : page !== 'journey' ? '行事中' : running ? '光阴流转' : '从容片刻' : '此生已结卷'}</strong><small>{game.age}岁 · {game.alive ? FOCUSES.find(f => f.id === game.focus)!.name : game.ending}</small></div></div>
-      <div className="time-controls"><button className={`button ${running && page === 'journey' ? 'pause-button' : 'primary'}`} disabled={!game.alive || (page !== 'journey' && !expedition)} onClick={() => { if (expedition) { navigate('opportunities'); return; } if (game.pending) { setEventOpen(true); return; } cancelDirector(); setRunning(value => !value); }} title={expedition ? '回到当前机缘' : game.pending ? '查看眼前的抉择' : '空格：暂停或继续'} data-testid="play-toggle"><Icon name={expedition ? 'compass' : game.pending ? 'spark' : running && page === 'journey' ? 'pause' : 'play'} size={16}/>{expedition ? '回到机缘' : game.pending ? '抉择' : running && page === 'journey' ? '暂停' : '继续'}</button><select className="speed-select" aria-label="流转速度" value={profile.settings.speed} onChange={e => changeSetting('speed', Number(e.target.value))} data-testid="speed-select">{[1, 2, 4, 8].map(speed => <option key={speed} value={speed}>{speed}×</option>)}</select></div>
+      <div className="time-controls"><button className={`button ${running && page === 'journey' ? 'pause-button' : 'primary'}`} disabled={!game.alive || (page !== 'journey' && !expedition)} onClick={() => { if (expedition) { setEventOpen(true); return; } if (game.pending) { setEventOpen(true); return; } cancelDirector(); setRunning(value => !value); }} title={expedition ? '回到当前机缘' : game.pending ? '查看眼前的抉择' : '空格：暂停或继续'} data-testid="play-toggle"><Icon name={expedition ? 'compass' : game.pending ? 'spark' : running && page === 'journey' ? 'pause' : 'play'} size={16}/>{expedition ? '回到机缘' : game.pending ? '抉择' : running && page === 'journey' ? '暂停' : '继续'}</button><select className="speed-select" aria-label="流转速度" value={profile.settings.speed} onChange={e => changeSetting('speed', Number(e.target.value))} data-testid="speed-select">{[1, 2, 4, 8].map(speed => <option key={speed} value={speed}>{speed}×</option>)}</select></div>
       <label className="auto-toggle" title="托管调整重心、处理普通机缘并尝试冲关；人生转折仍由你决定"><input type="checkbox" checked={automatic} disabled={Boolean(expedition)} onChange={e => { cancelDirector(); setAutomatic(e.target.checked); }} data-testid="auto-toggle"/><span className="switch-track"/><span>{game.direction ? '代选小事' : '托管修行'}</span></label>
     </footer>}
     </div>
@@ -226,7 +233,8 @@ export default function App() {
     {modal === 'help' && <Modal title="初入仙途" wide onClose={closeModal}><div className="help-grid"><section><span>01</span><h3>先过这一生</h3><p>默认从出生开始，家世与地域随缘。姓名可以留空；详细开局设置可展开。人物随人生际遇相识，既有朋友与恩人，也可能结下仇怨。</p></section><section><span>02</span><h3>选择生活的方向</h3><p>问道、远游、相守、自处会持续安排日常，兼顾生计与休养，并在条件满足时按真实概率尝试普通突破。也可展开重心，改为自己安排每年修行。</p></section><section><span>03</span><h3>重要的事亲自决定</h3><p>人物会成长、离世或飞升，后续会记得原来的相识与约定。机缘、传承和天门前的选择会暂停时间；开启「代选小事」也不会代答这些转折。</p></section><section><span>04</span><h3>细务仍然可做</h3><p>点击「行事」展开抽屉，修行、行囊、山门和出行都在其中。每年三次主动行动；关闭抽屉回到原来的片刻。</p></section></div><Notice>人生时间自然流转。抽屉和弹窗打开时暂停，关闭后恢复先前状态；隐藏浏览器标签则保持暂停。空格暂停或继续，支持1×、2×、4×、8×；不结算离线时间。半小时或一小时按{YEARS_PER_LIFE_ESTIMATE}年估算，实际用时取决于寿命、阅读和选择，不会到点强制结卷。</Notice><p className="quiet">存档保存在当前浏览器，不自动跨设备同步。换电脑、手机或网址前，可在「存档」导出JSON，再到新入口导入。游戏中的人物、地理与概率均为虚构；不是现实人口统计。</p></Modal>}
     {modal === 'attainment' && <Modal title="新得本领" onClose={closeModal}><div className="attainment-reveal" data-testid="attainment-reveal">{newAttainments.map(item => <article key={item.id}><Icon name="spark" size={30}/><h3>{item.name}</h3><p>{item.description}</p></article>)}</div><button className="button primary full" onClick={() => { setModal(null); if (page === 'journey') setRunning(true); }}>记下此刻，继续前行 <Icon name="arrow" size={17}/></button></Modal>}
     {modal === 'ending'  && game && <Modal title={game.ending || '此生结卷'} subtitle={`${game.name} · ${game.age}岁 · ${REALMS[game.realm].name}`} onClose={closeModal}><div className="ending-modal"><Seal>浮生<br/>一卷</Seal><p>{game.endingText}</p><div className="ending-stats"><span><strong>{game.age}</strong>岁结卷</span><span><strong>{game.choices}</strong>次抉择</span><span><strong>{game.successes}</strong>次破境</span></div><button className="button primary full" onClick={() => { setModal(null); navigate('archives'); }}>翻开这一生的传记 <Icon name="book" size={18}/></button><button className="text-button" onClick={newLife}>再入轮回，重新启程 <Icon name="rebirth" size={16}/></button></div></Modal>}
-    {!modal && !expedition && event && game && eventOpen && (!(automatic && running) || playerChoice) && <Modal title={event.title} subtitle={`${game.age}岁 · ${game.yearName}${worldYear(game)}年 · ${playerChoice ? '人生转折' : '路上机缘'}`} onClose={() => setEventOpen(false)}><p className="event-story">{event.text}</p>{event.cause && <div className="event-cause" data-testid="event-cause"><span>此事缘起</span><p>{event.cause}</p></div>}<div className="event-choices">{event.choices.map((choice, index) => { const blocked = choiceUnavailable(game, choice); return <button key={index} className="event-choice" onClick={() => apply({ type: 'choose', index })} disabled={Boolean(blocked)} data-testid={`event-choice-${index}`}><span className="choice-number">{index + 1}</span><span><strong>{choice.label}</strong>{choice.hint && <small className="choice-mechanics">{choice.hint}</small>}{choice.requiresStat && <em>{STAT_NAMES[choice.requiresStat[0]]} {choice.requiresStat[1]} / 当前 {Math.round(game.stats[choice.requiresStat[0]])}</em>}{blocked && <em className="danger-text">{blocked}</em>}</span><Icon name="chevron" size={16}/></button>; })}</div></Modal>}
+    {expedition && game && pageProps && !modal && !confirmation && !drawerOpen && eventOpen && <Modal title={expedition.title} onClose={() => setEventOpen(false)}><Opportunities {...pageProps}/></Modal>}
+    {!modal && !expedition && event && game && eventOpen && (!(automatic && running) || playerChoice) && <Modal title={event.title} subtitle={`${game.age}岁 · ${game.yearName}${worldYear(game)}年 · ${playerChoice ? '人生转折' : '路上机缘'}`} onClose={() => setEventOpen(false)}><p className="event-story">{event.text}</p>{event.cause && <div className="event-cause" data-testid="event-cause"><span>此事缘起</span><p>{event.cause}</p></div>}<div className="event-choices">{event.choices.map((choice, index) => { const blocked = choiceUnavailable(game, choice); return <button key={index} className="event-choice" onClick={() => apply({ type: 'choose', index })} disabled={Boolean(blocked)} data-testid={`event-choice-${index}`}><span className="choice-number">{index + 1}</span><span><strong>{choice.label}</strong>{knownRisk(choice.hint) && <small className="choice-risk">{knownRisk(choice.hint)}</small>}{blocked && <em className="danger-text">{blocked.includes('灵石') ? '资用不足' : '目前尚不具备条件'}</em>}</span><Icon name="chevron" size={16}/></button>; })}</div></Modal>}
     </>}
   </div>;
 }

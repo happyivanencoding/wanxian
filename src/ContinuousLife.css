@@ -30,6 +30,13 @@
 .drawer-sections > details > summary > span { flex: 1; }
 .drawer-sections > details[open] > summary { color: var(--pixel-gold); }
 .drawer-sections > details[open] > summary > svg:last-child { transform: rotate(90deg); }
+.drawer-sections .drawer-advanced > details { margin-left: 14px; border-top: 1px solid var(--pixel-border); }
+.drawer-sections .drawer-advanced > details > summary { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 10px 4px; cursor: pointer; list-style: none; font-size: 12px; }
+.drawer-sections .drawer-advanced > details > summary > span { flex: 1; }
+.drawer-sections .drawer-advanced > details > summary::-webkit-details-marker { display: none; }
+.drawer-sections .drawer-advanced > details[open] > summary { color: var(--pixel-gold); }
+.continuous-life .choice-risk { display: block; margin-top: 4px; color: var(--pixel-gold); font-size: 11px; }
+.app-shell .expedition-offers[hidden] { display: none !important; }
 .drawer-section-body { padding: 0 0 22px; }
 .continuous-life .drawer-section-body > .page-enter > .section-title { margin-bottom: 8px; }
 .continuous-life .drawer-section-body .section-title h2 { font-size: 17px; }

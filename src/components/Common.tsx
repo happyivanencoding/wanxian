@@ -14,15 +14,18 @@ export function Modal({ title, subtitle, children, onClose, wide = false, classN
     const backgrounds = [...document.querySelectorAll<HTMLElement>('.app-main')].filter(element => !element.contains(ref.current));
     const priorInert = backgrounds.map(element => element.inert);
     backgrounds.forEach(element => { element.inert = true; });
-    ref.current?.querySelector<HTMLElement>('button, summary, input, select, textarea, [tabindex="0"]')?.focus({ preventScroll: true });
+    ref.current?.querySelector<HTMLElement>('button:not(:disabled), summary, input:not(:disabled), select:not(:disabled), textarea, [tabindex="0"]')?.focus({ preventScroll: true });
     const onKey = (event: KeyboardEvent) => {
       if ([...document.querySelectorAll('[role="dialog"]')].at(-1) !== ref.current) return;
       if (event.key === 'Escape') { event.stopPropagation(); close.current(); }
       if (event.key !== 'Tab') return;
-      const focusable = [...(ref.current?.querySelectorAll<HTMLElement>('button:not(:disabled), summary, input:not(:disabled), select:not(:disabled), textarea, [tabindex="0"]') || [])].filter(e => e.offsetParent !== null);
-      const first = focusable[0], last = focusable.at(-1);
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+      const focusable = [...(ref.current?.querySelectorAll<HTMLElement>('button:not(:disabled), summary, input:not(:disabled), select:not(:disabled), textarea, [tabindex="0"]') || [])]
+        .filter(element => element.checkVisibility({ checkVisibilityCSS: true }));
+      const active = focusable.indexOf(document.activeElement as HTMLElement);
+      const next = active < 0 ? (event.shiftKey ? focusable.length - 1 : 0)
+        : (active + (event.shiftKey ? -1 : 1) + focusable.length) % focusable.length;
+      event.preventDefault();
+      focusable[next]?.focus({ preventScroll: true });
     };
     document.addEventListener('keydown', onKey);
     return () => { backgrounds.forEach((element, index) => { element.inert = priorInert[index]; }); document.body.style.overflow = bodyOverflow; document.removeEventListener('keydown', onKey); previous?.focus({ preventScroll: true }); };

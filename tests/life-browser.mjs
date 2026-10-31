@@ -111,7 +111,7 @@ try {
     await p.getByTestId('event-choice-1').click();
     assert.equal((await settle(p, value => !value.game.pending)).game.stones, 0);
   });
-  await check('Legacy v1 saves keep manual control and expose the new direction picker', async () => {
+  await check('Current v2 manual play can switch to a life direction', async () => {
     const profile = scenario(); delete profile.game.direction; profile.game.pending = null;
     await importProfile(p, profile);
     assert.equal((await state(p)).game.direction, undefined);

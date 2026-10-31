@@ -41,7 +41,7 @@ function newCareer(npc: NPC, g: Game, draw: PeopleHooks['random']) {
   };
 }
 
-export function meetPerson(g: Game, kind: string, hooks: PeopleHooks, id?: string): NPC {
+export function meetPerson(g: Game, kind: string, hooks: PeopleHooks, id?: string, profileOverride?: Partial<Pick<NPC, 'name' | 'title' | 'family' | 'desire'>>): NPC {
   if (id) {
     const known = g.npcs.find(npc => npc.id === id);
     if (known) return known;
@@ -66,11 +66,11 @@ export function meetPerson(g: Game, kind: string, hooks: PeopleHooks, id?: strin
   const family = FAMILIES[g.region][int(0, 2)].name;
   const regionName = REGIONS.find(region => region.id === g.region)!.name;
   const npc: NPC = {
-    id: id ?? `encounter-${g.age}-${g.npcs.length}`, name, ...profile,
+    id: id ?? `encounter-${g.age}-${g.npcs.length}`, name, ...profile, ...profileOverride,
     progress: 0, aptitude: kind === 'prodigy' ? int(82, 97) : int(22, 92),
     lifespan: Math.max(profile.age + 20, REALMS[profile.realm].life + int(-7, 9)),
     alive: true, relation: 30, role: 'acquaintance', lastInteraction: -1,
-    region: g.region, family, metAt: g.age, meeting: `${g.age}岁，在${regionName}初次相识。`,
+    region: g.region, family: profileOverride?.family ?? family, metAt: g.age, meeting: `${g.age}岁，在${regionName}初次相识。`,
     story: '', gear: { name: ['旧木剑', '青锋法剑', '护身灵镜', '离火宝轮', '照夜古剑'][tier], tier },
   };
   npc.career = newCareer(npc, g, hooks.random);

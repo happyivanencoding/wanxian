@@ -41,7 +41,7 @@ export interface DirectorRecord {
 }
 export interface Game {
   direction?: 'seek' | 'roam' | 'belong' | 'peace';
-  version: 1; id: string; seed: number; rng: number; name: string; gender: string; origin: string; era: string; root: string; aptitude: number; talent: string; route: string;
+  version: 2; id: string; seed: number; rng: number; name: string; gender: string; origin: string; era: string; root: string; aptitude: number; talent: string; route: string;
   age: number; realm: number; progress: number; lifespan: number; stones: number; stats: Stats; focus: Focus; region: string;
   sect: string | null; contribution: number; sectRank: number; home: Record<string, number>; inventory: Record<string, number>; equipped: string | null;
   flags: string[]; seen: Record<string, number>; pending: string | null; delayed: Delayed[]; npcs: NPC[]; logs: Log[]; snapshots: Snapshot[];
@@ -59,7 +59,7 @@ export interface Choice { label: string; hint: string; effect: Effect; cost?: nu
 export interface EventDef { id: string; title: string; text: string; category: LogKind; kind?: 'routine' | 'opportunity' | 'turning'; cause?: string; minAge?: number; maxAge?: number; minRealm?: number; maxRealm?: number; focus?: Focus; region?: string; flag?: string; notFlag?: string; sect?: boolean; cooldown?: number; once?: boolean; weight?: number; choices: Choice[] }
 export interface BirthConfig { name: string; gender: string; origin: string; era: string; route: string; region?: string; mode: 'seeker' | 'all'; fastStart: boolean; seed: string; guided?: boolean }
 export interface LifeRecord { id: string; name: string; age: number; realm: number; origin: string; route: string; ending: string; endingText: string; totalStones: number; choices: number; legacy: string; logs: Log[]; date: string }
-export interface Profile { version: 1; game: Game | null; archives: LifeRecord[]; slots: ({ name: string; savedAt: string; game: Game } | null)[]; settings: { theme: 'light' | 'dark'; speed: number; durationMinutes: 30 | 60; policy: 'safe' | 'bold' | 'random'; reducedMotion: boolean; directorEnabled?: boolean }; achievements: string[] }
+export interface Profile { version: 2; game: Game | null; archives: LifeRecord[]; slots: ({ name: string; savedAt: string; game: Game } | null)[]; settings: { theme: 'light' | 'dark'; speed: number; durationMinutes: 30 | 60; policy: 'safe' | 'bold' | 'random'; reducedMotion: boolean; directorEnabled?: boolean }; achievements: string[] }
 export type Action =
  | { type: 'direction'; direction: 'seek' | 'roam' | 'belong' | 'peace' | null }
  | { type: 'advance'; years?: number }

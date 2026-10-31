@@ -189,10 +189,11 @@ test('guided daily care uses owned medicine without spending another action poin
   assert.equal(next.inventory.heal, 0); assert.equal(next.actionsLeft, 3); assert.ok(next.stats.health > g.stats.health);
 });
 
-test('legacy v1 relationships survive loading unchanged and malformed new fields are rejected', () => {
-  const legacy = withLegacyPeers(adult()); delete legacy.history; delete legacy.fortune;
-  const restored = parseProfile(JSON.stringify(settleProfile(newProfile(), legacy))).game!;
-  assert.deepEqual(restored.npcs, legacy.npcs); assert.equal(restored.history, undefined);
+test('current v2 preserves its known people while rejecting outdated versions and malformed state', () => {
+  const known = withLegacyPeers(adult());
+  const profile = settleProfile(newProfile(), known);
+  assert.deepEqual(parseProfile(JSON.stringify(profile)).game!.npcs, known.npcs);
+  assert.throws(() => parseProfile(JSON.stringify({ ...profile, version: 1 })));
   const g = enemy(); assert.ok(validGame(g));
   for (const mutate of [
     (x: Game) => { x.npcs.push(structuredClone(x.npcs[0])); },

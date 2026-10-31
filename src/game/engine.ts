@@ -2,6 +2,8 @@ import { ACHIEVEMENTS, ERAS, FOCUSES, GIVEN_NAMES, HOMES, ITEMS, ORIGINS, REALMS
 import { CHILD_EVENTS, EVENTS, EVENT_MAP } from './events.ts';
 import { FAMILIES, advanceHistory, historyConditions, initializeHistory, nextHistoryEvent, getHistoryEvent, recordHistoryChoice, resonateRelics } from './history.ts';
 import { advanceCultivation, cultivationFlow, cultivationInsight } from './cultivation.ts';
+import { bindRegionalEvent, getRegionalEvent, nextRegionalEvent, recordRegionalChoice, regionalYear } from './regional.ts';
+import { getVentureEvent, nextVentureEvent, recordVentureChoice } from './venture.ts';
 import { bindRelationshipEvent, getRelationshipEvent, growRelationships, nextRelationshipEvent, recordRelationshipChoice } from './relationships.ts';
 import { gearTier } from './data.ts';
 import { fateInfluence } from './fate.ts';
@@ -150,7 +152,7 @@ export function createGame(config: BirthConfig): Game {
   const name = config.name.trim().slice(0, 12) || pick(cursor, SURNAMES) + pick(cursor, GIVEN_NAMES);
   const talent = pick(cursor, ['心如止水', '勤学不辍', '筋骨强健', '草木亲和', '剑心初生']);
   const g: Game = {
-    version: 1, id: `${seed.toString(36)}-${name}`, seed, rng: cursor.rng, name, gender: config.gender || '随缘', origin: origin.id, era: era.id,
+    version: 2, id: `${seed.toString(36)}-${name}`, seed, rng: cursor.rng, name, gender: config.gender || '随缘', origin: origin.id, era: era.id,
     root: noRoot ? '无灵根 · 以武入道' : roots[rootIndex], aptitude, talent, route: noRoot ? 'body' : (ROUTES.some(r => r.id === config.route) ? config.route : 'balanced'),
     age: 0, realm: 0, progress: 0, lifespan: 85 + integer(cursor, -6, 8), stones: origin.stones,
     stats: { health: 84, mind: 65, insight: 32 + origin.insight, foundation: 27 + origin.foundation, reputation: origin.id === 'clan' ? 12 : 3, alchemy: 0, combat: origin.id === 'wanderer' ? 18 : 6 },
@@ -186,6 +188,10 @@ export function getEvent(g: Game, id: string | null = g.pending): EventDef | und
   if (!id) return;
   const relationship = getRelationshipEvent(g, id);
   if (relationship) return relationship;
+  const regional = getRegionalEvent(g, id);
+  if (regional) return regional;
+  const venture = getVentureEvent(g, id);
+  if (venture) return venture;
   const historical = getHistoryEvent(g, id);
   if (historical) return historical;
   const life = getLifeEvent(g, id);
@@ -213,6 +219,7 @@ export function requiresPlayerChoice(g: Game): boolean {
 }
 function openEvent(g: Game, id: string) {
   bindRelationshipEvent(g, id, { random, log, gain });
+  bindRegionalEvent(g, id, { random, log, gain });
   bindLifeEvent(g, id);
   if (id === 'wounded-friend' && !g.flags.some(flag => flag.startsWith('wounded-person:'))) {
     const person = g.npcs.find(npc => npc.alive && !['rival', 'enemy'].includes(npc.role)) ?? g.npcs.find(npc => npc.alive);
@@ -230,8 +237,14 @@ function selectEvent(g: Game, director?: DirectorControl) {
   const lastRoutine = Math.max(0, ...seenEntries.filter(([id]) => EVENT_MAP[id]?.kind === 'routine').map(([, age]) => age));
   const relationship = nextRelationshipEvent(g, random(g));
   if (relationship === 'rival-pursuit') { openEvent(g, relationship); return; }
+  const personal = nextLifeEvent(g);
+  if (personal === 'life-heaven') { openEvent(g, personal); return; }
   const historical = nextHistoryEvent(g);
   if (historical && g.age - lastManual >= 6) { openEvent(g, historical); return; }
+  const regional = nextRegionalEvent(g);
+  if (regional && (g.age - lastManual >= 6 || (regional.endsWith('-arrival') && g.visited.length > 1))) { openEvent(g, regional); return; }
+  const venture = nextVentureEvent(g, random(g));
+  if (venture && g.age - lastManual >= 6) { openEvent(g, venture); return; }
   if (relationship && g.age - lastManual >= (g.age < 16 ? 2 : 6)) { openEvent(g, relationship); return; }
   if (g.age < 16) return;
   const life = nextLifeEvent(g);
@@ -277,6 +290,31 @@ export function choiceUnavailable(g: Game, choice: Choice): string | null {
   if (choice.requiresStat && g.stats[choice.requiresStat[0]] < choice.requiresStat[1]) return `未达到 ${choice.requiresStat[1]} 点属性门槛`;
   return null;
 }
+function choiceChanges(before: Game, after: Game): string {
+  const parts: string[] = [];
+  const diff = (label: string, first: number, last: number) => {
+    const amount = Math.round((last - first) * 10) / 10;
+    if (Math.abs(amount) >= 0.1) parts.push(label + ' ' + (amount > 0 ? '+' : '−') + Math.abs(amount));
+  };
+  diff('灵石', before.stones, after.stones);
+  diff('修为', before.progress, after.progress);
+  diff('寿元', before.lifespan, after.lifespan);
+  diff('宗门贡献', before.contribution, after.contribution);
+  const names: Record<Stat,string> = { health:'体魄',mind:'道心',insight:'悟性',foundation:'根基',reputation:'声望',alchemy:'丹术',combat:'战技' };
+  for (const stat of Object.keys(names) as Stat[]) diff(names[stat], before.stats[stat], after.stats[stat]);
+  const ids = new Set([...Object.keys(before.inventory), ...Object.keys(after.inventory)]);
+  for (const id of ids) {
+    const first=before.inventory[id]??0,last=after.inventory[id]??0;
+    if (last!==first) parts.push((ITEMS.find(item=>item.id===id)?.name??id)+' '+(last>first?'+':'−')+Math.abs(last-first));
+  }
+  for (const actor of after.npcs) {
+    const original=before.npcs.find(npc=>npc.id===actor.id);
+    if (original) diff(actor.name+'情谊', original.relation, actor.relation);
+  }
+  if (before.region!==after.region) parts.push('迁至'+currentRegion(after).name);
+  if (before.sect!==after.sect && after.sect) parts.push('拜入'+SECTS.find(s=>s.id===after.sect)!.name);
+  return parts.length?'本次变化：'+parts.join('，')+'。':'';
+}
 function resolveChoice(g: Game, index: number, automatic = false): string | null {
   if (!g.pending) return '目前没有等待决定的事件';
   const event = getEvent(g);
@@ -284,16 +322,20 @@ function resolveChoice(g: Game, index: number, automatic = false): string | null
   if (!choice) return '无效的选项';
   const unavailable = choiceUnavailable(g, choice);
   if (unavailable) return unavailable;
+  const before = structuredClone(g);
   if (choice.cost) g.stones -= choice.cost;
   const success = choice.chance === undefined || random(g) < choice.chance;
   gain(g, success ? choice.effect : choice.failure);
   if (success) {
     recordStoryChoice(g, event, choice);
     recordHistoryChoice(g, event, choice);
+    recordRegionalChoice(g, event, choice, { random, log, gain });
   }
   const fatalConflict = recordRelationshipChoice(g, event, choice, success, { random, log, gain });
   if (!automatic) g.choices++;
-  log(g, event.title, `${event.cause ? event.cause + ' ' : ''}${automatic ? '岁月中自然发生：' : ''}${choice.label}。${success ? choice.successText || choice.hint : choice.failureText || '未能如愿，但这段经历仍留在你的生命里。'}`, event.category, !automatic || event.id.startsWith('story-'));
+  g.pending = null;
+  if (success) recordVentureChoice(g, event, choice, { random, log, gain, checkLife });
+  log(g, event.title, `${event.cause ? event.cause + ' ' : ''}${automatic ? '岁月中自然发生：' : ''}${choice.label}。${success ? choice.successText || choice.hint : choice.failureText || '未能如愿，但这段经历仍留在你的生命里。'}${choiceChanges(before, g)}`, event.category, !automatic || event.id.startsWith('story-'));
   if (success && choice.delayed) { const { after, ...later } = choice.delayed; g.delayed.push({ at: g.age + after, ...later }); }
   g.pending = null;
   if (fatalConflict) finish(g, '旧怨中陨落', fatalConflict);
@@ -319,6 +361,7 @@ function advanceOne(g: Game, director?: DirectorControl) {
   if (!g.alive || g.pending || g.expeditions?.active) return;
   g.age++; g.actionsLeft = 3;
   advanceHistory(g, { random, log, gain });
+  regionalYear(g, { random, log, gain });
   tendBelongings(g);
   arrangeLife(g);
   advanceCultivation(g, { random, log, gain });

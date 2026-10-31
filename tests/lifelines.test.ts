@@ -197,7 +197,8 @@ test('guided lives remain deterministic, finite and saveable across all four dir
       let current = source;
       current.direction = direction;
       for (let n = 0; n < 12000 && current.alive; n++) {
-        if (current.pending) {
+        if (current.expeditions?.active) current = act(current, { type: 'expedition-retreat' }).game;
+        else if (current.pending) {
           const event = getEvent(current)!;
           const index = event.choices.findIndex(item => (item.cost ?? 0) <= current.stones && (!item.requiresStat || current.stats[item.requiresStat[0]] >= item.requiresStat[1]));
           current = act(current, { type: 'choose', index }).game;

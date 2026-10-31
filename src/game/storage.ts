@@ -7,10 +7,10 @@ import { NPC_RESPONSE_IDS } from './director.ts';
 import { FACTIONS, HISTORY_CHAPTERS, FAMILIES } from './history.ts';
 import type { Game, Profile } from './types.ts';
 
-export const SAVE_KEY = 'wanxian-life:profile:v1';
-export const BACKUP_KEY = 'wanxian-life:previous:v1';
+export const SAVE_KEY = 'wanxian-life:profile:v2';
+export const BACKUP_KEY = 'wanxian-life:previous:v2';
 export function newProfile(): Profile {
-  return { version: 1, game: null, archives: [], slots: [null, null, null], settings: { theme: 'light', speed: 1, durationMinutes: 30, policy: 'safe', reducedMotion: false, directorEnabled: true }, achievements: [] };
+  return { version: 2, game: null, archives: [], slots: [null, null, null], settings: { theme: 'light', speed: 1, durationMinutes: 30, policy: 'safe', reducedMotion: false, directorEnabled: true }, achievements: [] };
 }
 type ObjectValue = Record<string, unknown>;
 const object = (v: unknown): v is ObjectValue => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -48,7 +48,7 @@ function validHistory(h: unknown, age: number) {
   });
 }
 export function validGame(value: unknown): value is Game {
-  if (!object(value) || value.version !== 1) return false;
+  if (!object(value) || value.version !== 2) return false;
   const g = value;
   if (g.direction !== undefined && !['seek', 'roam', 'belong', 'peace'].includes(g.direction as string)) return false;
   if (!['id', 'name', 'gender', 'root', 'talent', 'endingText', 'yearName'].every(k => text(g[k]))) return false;
@@ -69,7 +69,7 @@ export function validGame(value: unknown): value is Game {
   if (!Array.isArray(g.delayed) || !g.delayed.every(d => object(d) && number(d.at, 0, 10000) && text(d.title) && text(d.text) && validEffect(d.effect))) return false;
   if (!Array.isArray(g.npcs) || g.npcs.length > 64 || !g.npcs.every(validNPC) || new Set(g.npcs.map(n => n.id)).size !== g.npcs.length) return false;
   if (!g.delayed.every(d => !d.effect.npcId || (g.npcs as Game['npcs']).some(npc => npc.id === d.effect.npcId))) return false;
-  if (g.history !== undefined && !validHistory(g.history, g.age as number)) return false;
+  if (!validHistory(g.history, g.age as number)) return false;
   if (g.family !== undefined && !Object.values(FAMILIES).flat().some(family => family.name === g.family)) return false;
   if (g.fortune !== undefined) {
     const f = g.fortune;
@@ -102,13 +102,13 @@ export function parseProfile(raw: string): Profile {
   if (raw.length > 12 * 1024 * 1024) throw new Error('存档超过12MB，请使用本项目导出的存档文件。');
   let value: unknown;
   try { value = JSON.parse(raw); } catch { throw new Error('不是有效的 JSON 存档。原存档未被改动。'); }
-  if (!object(value) || value.version !== 1) throw new Error('无法识别存档版本，需要「万仙之一」v1 存档。');
+  if (!object(value) || value.version !== 2) throw new Error('无法识别存档版本，仅支持当前版本「万仙之一」v2 存档。');
   if (value.game !== null && !validGame(value.game)) throw new Error('人物存档字段不完整或数值无效，未进行导入。');
   if (!Array.isArray(value.slots) || value.slots.length !== 3 || !value.slots.every(s => s === null || (object(s) && text(s.name) && text(s.savedAt) && validGame(s.game)))) throw new Error('手动存档槽损坏，未进行导入。');
   if (!Array.isArray(value.archives) || value.archives.length > 30 || !value.archives.every(a => object(a) && ['id', 'name', 'origin', 'route', 'ending', 'endingText', 'legacy', 'date'].every(k => text(a[k])) && number(a.age, 0, 10000) && number(a.realm, 0, 6) && Number.isInteger(a.realm) && number(a.totalStones) && number(a.choices) && Array.isArray(a.logs) && a.logs.every(validLog))) throw new Error('前世记录不完整，未进行导入。');
-  if (!object(value.settings) || !['light', 'dark'].includes(value.settings.theme as string) || ![1, 2, 4, 8].includes(value.settings.speed as number) || (value.settings.durationMinutes !== undefined && ![30, 60].includes(value.settings.durationMinutes as number)) || (value.settings.directorEnabled !== undefined && typeof value.settings.directorEnabled !== 'boolean') || !['safe', 'bold', 'random'].includes(value.settings.policy as string) || typeof value.settings.reducedMotion !== 'boolean' || !strings(value.achievements)) throw new Error('存档设置无效，未进行导入。');
-  const profile = value as unknown as Profile;
-  return { ...profile, settings: { ...profile.settings, durationMinutes: profile.settings.durationMinutes ?? 30, directorEnabled: profile.settings.directorEnabled ?? true } };
+  if (!object(value.settings) || !['light', 'dark'].includes(value.settings.theme as string) || ![1, 2, 4, 8].includes(value.settings.speed as number) || ![30, 60].includes(value.settings.durationMinutes as number) || typeof value.settings.directorEnabled !== 'boolean' || !['safe', 'bold', 'random'].includes(value.settings.policy as string) || typeof value.settings.reducedMotion !== 'boolean' || !strings(value.achievements)) throw new Error('存档设置无效，未进行导入。');
+
+  return value as unknown as Profile;
 }
 export function settleProfile(profile: Profile, game: Game): Profile {
   let archives = profile.archives;

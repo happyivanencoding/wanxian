@@ -16,7 +16,7 @@ const output = path.resolve(`.artifacts/${publicRun ? 'world-public' : visualOnl
 await fs.mkdir(output, { recursive: true });
 assert.equal((await fetch(baseURL)).status, 200, 'The application must be running.');
 const config = { name: '沈听澜', gender: '女修', origin: 'merchant', era: 'peace', region: 'qinglan', route: 'balanced', mode: 'seeker', fastStart: false, seed: 'continuous-browser' };
-const sections = ['practice', 'opportunities', 'world', 'sect', 'home', 'inventory', 'people', 'life', 'chronicle', 'archives'];
+const sections = ['practice', 'world', 'sect', 'home', 'inventory', 'people', 'life', 'chronicle', 'archives'];
 const results = [], errors = [];
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 let activePage;
@@ -55,6 +55,7 @@ async function clearDialogs(page) { for (let i = 0; i < 6 && await page.getByRol
 async function nav(page, section) {
   if (section === 'journey') { if (await page.getByTestId('action-drawer').count()) await close(page); return; }
   if (!await page.getByTestId('action-drawer').count()) await page.getByTestId('open-actions').click();
+  if (['sect', 'home', 'inventory'].includes(section) && !await page.locator('.drawer-advanced').evaluate(node => node.open)) await page.getByTestId('drawer-advanced').click();
   const row = page.locator(`[data-section="${section}"]`);
   if (!await row.evaluate(node => node.open)) await page.getByTestId(`drawer-${section}`).click();
 }
@@ -105,6 +106,17 @@ try {
       const external = await page.evaluate(() => performance.getEntriesByType('resource').filter(r => !r.name.startsWith(location.origin)).map(r => r.name));
       assert.deepEqual(external, []);
     });
+    await check('A previous major save version is not silently migrated into this prototype', async () => {
+      const old = fixture();
+      old.version = 1; old.game.version = 1;
+      await page.evaluate(({ profile, key }) => {
+        localStorage.setItem('wanxian-life:profile:v1', JSON.stringify(profile));
+        localStorage.removeItem(key);
+      }, { profile: old, key: SAVE_KEY });
+      await page.reload();
+      await page.getByTestId('start-life').waitFor();
+      assert.equal((await state(page)).game, null);
+    });
     await check('Default birth is from zero, knows nobody, and does not require advanced setup', async () => {
       await page.getByTestId('start-life').click();
       assert.equal(await page.getByTestId('birth-advanced').evaluate(node => node.open), false);
@@ -121,15 +133,25 @@ try {
       await page.getByTestId('event-choice-0').click();
       await changed(page, s => s.game.pending === null);
     });
-    await check('An old v1 life imports with its existing people intact', async () => {
-      const legacy = fixture(); delete legacy.game.history; delete legacy.game.fortune;
-      await install(page, legacy); assert.deepEqual((await state(page)).game.npcs, legacy.game.npcs);
+    await check('A current v2 life retains the people actually known in this run', async () => {
+      const known = fixture();
+      await install(page, known); assert.deepEqual((await state(page)).game.npcs, known.game.npcs);
       assert.equal(await page.locator('.life-people-row > button').count(), 4);
+    });
+    await check('Choices conceal numeric rewards until the result is recorded in the life log', async () => {
+      const p = fixture(); p.game.pending = 'child-root'; p.game.seen['child-root'] = 6;
+      await install(page, p);
+      const option = await page.getByTestId('event-choice-0').innerText();
+      assert.doesNotMatch(option, /修为\s*\+\s*10|悟性\s*\+\s*3/);
+      await page.getByTestId('event-choice-0').click();
+      const after = (await changed(page, s => s.game.pending === null)).game;
+      assert.match(after.logs.at(-1).text, /本次变化：/);
+      assert.match(after.logs.at(-1).text, /修为/);
     });
     await check('One action drawer exposes all tools without replacing the main life scene', async () => {
       await install(page); await page.evaluate(() => { window.lifeScene = document.querySelector('[data-testid="cultivation-home"]'); });
       await page.getByTestId('open-actions').click();
-      assert.equal(await page.locator('.drawer-sections > details').count(), sections.length);
+      assert.equal(await page.locator('.drawer-sections > details').count(), 7);
       assert.equal(await page.locator('.sidebar, .mobile-bottom-nav').count(), 0);
       await nav(page, 'inventory');
       assert.ok(await page.evaluate(() => window.lifeScene === document.querySelector('[data-testid="cultivation-home"]')));
@@ -162,7 +184,7 @@ try {
     });
     await check('The drawer traps keyboard focus and returns it to the opening button', async () => {
       await page.evaluate(() => window.scrollTo(0, 0)); await page.getByTestId('open-actions').click();
-      for (let i = 0; i < 16; i++) { await page.keyboard.press('Tab'); assert.ok(await page.evaluate(() => Boolean(document.activeElement?.closest('[role="dialog"]')))); }
+      for (let i = 0; i < 16; i++) { await page.keyboard.press('Tab'); const focus = await page.evaluate(() => ({ inside: Boolean(document.activeElement?.closest('[role="dialog"]')), tag: document.activeElement?.tagName, name: document.activeElement?.getAttribute('aria-label'), html: document.activeElement?.outerHTML.slice(0, 180) })); if (!focus.inside) console.log('FOCUS ESCAPED', i, focus); assert.ok(focus.inside); }
       await page.keyboard.press('Escape'); assert.ok(await page.getByTestId('open-actions').evaluate(node => node === document.activeElement));
     });
     await check('Purchases charge the actual world price and use one action', async () => {
@@ -200,7 +222,8 @@ try {
       assert.ok(await page.getByTestId('action-drawer').isVisible());
     });
     await check('Sect entry and missions change membership and contributions', async () => {
-      await install(page); await nav(page, 'sect'); await page.getByTestId('join-qinglan').click(); await changed(page, s => s.game.sect === 'qinglan');
+      const story = fixture(); story.game.pending = 'region-qinglan-apprentice'; story.game.seen['region-qinglan-arrival'] = 18; story.game.seen['region-qinglan-dispute'] = 24;
+      await install(page, story); await page.getByTestId('event-choice-0').click(); await changed(page, s => s.game.sect === 'qinglan'); await nav(page, 'sect');
       await page.getByTestId('sect-mission').click(); await changed(page, s => s.game.contribution === 22);
     });
     await check('A learned sect art grants its equipment once and returns from the reveal to the same drawer', async () => {
@@ -225,15 +248,15 @@ try {
       assert.ok((await state(page)).game.flags.includes('attainment-2-meditate')); await close(page);
     });
     await check('An expedition carries causal stage choices, pauses years and consumes only its entry action', async () => {
-      const p = fixture(); p.game.actionsLeft = 1;
-      await install(page, p); await nav(page, 'opportunities'); await page.getByTestId('expedition-start-spring').click();
+      const p = fixture(); p.game.actionsLeft = 1; p.game.pending = 'venture-spring';
+      await install(page, p); await page.getByTestId('event-choice-0').click();
       await changed(page, s => s.game.expeditions?.active?.stage === 0); assert.equal((await state(page)).game.actionsLeft, 0);
       await page.getByTestId('expedition-choice-map').click(); await changed(page, s => s.game.expeditions?.active?.stage === 1);
       assert.match(await page.getByTestId('expedition-scene').innerText(), /排水道/);
       await close(page); await page.waitForTimeout(400); assert.equal((await state(page)).game.age, 28);
-      await nav(page, 'opportunities'); await page.getByTestId('expedition-choice-channel').click();
+      await page.getByTestId('expedition-resume').click(); await page.getByTestId('expedition-choice-channel').click();
       await page.getByTestId('expedition-choice-clear').click(); await changed(page, s => s.game.expeditions?.completed?.length === 1);
-      await page.getByTestId('attainment-reveal').waitFor(); await close(page); assert.match(await page.getByTestId('expedition-result').innerText(), /清泉洗髓/);
+      await page.getByTestId('attainment-reveal').waitFor(); await close(page); assert.ok((await state(page)).game.expeditions.completed.some(result => /清泉洗髓/.test(result.title)));
       assert.equal((await state(page)).game.actionsLeft, 0);
     });
     await check('People show their actual ages and interactions change only a valid living relationship', async () => {
@@ -269,7 +292,7 @@ try {
     await check('Lethal pursuit presents the danger and archives the actual killer after the chosen fight', async () => {
       const p = fatalProfile(), name = p.game.npcs[0].name;
       await install(page, p); await page.getByTestId('event-choice-0').waitFor();
-      assert.match(await page.getByTestId('event-choice-0').innerText(), /会陨落/);
+      assert.match(await page.getByTestId('event-choice-0').innerText(), /陨落/);
       await page.getByTestId('event-choice-0').click(); const after = await changed(page, s => !s.game.alive);
       assert.equal(after.game.ending, '旧怨中陨落'); assert.ok(after.game.endingText.includes(name)); assert.equal(after.archives.length, 1);
       await clearDialogs(page); await nav(page, 'archives'); assert.ok((await page.locator('.drawer-section-body').innerText()).includes(name));

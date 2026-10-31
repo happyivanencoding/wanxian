@@ -167,7 +167,7 @@ test('director context contains bounded observed fiction and omits future reward
   assert.ok((request.context.livedExperience as unknown[]).length <= 6);
 });
 
-test('decision records survive saving, are bounded and reject invalid additions; old settings still load', () => {
+test('decision records survive current-version saves and reject malformed settings and records', () => {
   const g = person();
   g.directorRecords = Array.from({ length: 64 }, (_, age) => ({ kind: 'npc' as const, age: Math.min(g.age, age), actorId: 'peer-1', candidateId: 'reserved', source: 'local' as const }));
   const plan = planDirectedAction(g, talk); assert.ok(plan.request);
@@ -176,7 +176,7 @@ test('decision records survive saving, are bounded and reject invalid additions;
   const profile = settleProfile(newProfile(), next);
   assert.deepEqual(parseProfile(JSON.stringify(profile)), profile);
   const old = newProfile(); delete old.settings.directorEnabled;
-  assert.equal(parseProfile(JSON.stringify(old)).settings.directorEnabled, true);
+  assert.throws(() => parseProfile(JSON.stringify(old)));
   old.settings.directorEnabled = false;
   assert.equal(parseProfile(JSON.stringify(old)).settings.directorEnabled, false);
   for (const record of [
